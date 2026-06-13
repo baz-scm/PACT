@@ -19,17 +19,19 @@ tasks.yaml         Canonical task list with checkpoint milestones
 ## Testing approach
 
 - **Vitest** everywhere. No Jest.
-- **No DB mocks.** Server tests use `better-sqlite3` with `:memory:` path. Paid layer tests use a real Postgres test DB.
+- **No DB mocks.** Server tests use `node:sqlite` with `:memory:` path. Paid layer tests use a real Postgres test DB.
 - **supertest** for API integration tests — hit the Express app directly, no network.
 - TDD order: write failing test → implement → green.
 
 ## Commands
 
 ```bash
-pnpm dev                    # start server (packages/server) in watch mode
-pnpm test                   # run all tests across all packages
-pnpm -F server test         # server tests only
-pnpm -F server test:watch   # server tests in watch mode
+pnpm dev                              # start server + client (Vite on :5173, API on :3000)
+pnpm -F @baz-scm/pact-core dev        # server only
+pnpm -F @baz-scm/pact-client dev      # client only
+pnpm test                             # run all tests across all packages
+pnpm -F @baz-scm/pact-core test       # server tests only
+pnpm -F @baz-scm/pact-core test:watch # server tests in watch mode
 pnpm typecheck              # typecheck all packages
 pnpm build                  # production build all packages
 pnpm check                  # typecheck + lint + test (same as CI)

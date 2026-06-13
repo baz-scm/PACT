@@ -37,7 +37,7 @@ tasks:
         - Test approach (Vitest, supertest against real :memory: SQLite, no mocks for DB)
         - pnpm commands (pnpm dev, pnpm test, pnpm -F server test, etc.)
         - Where paid-tier extension seams are (IStorage, IAuth, capability flags)
-    status: todo
+    status: done
 
   # ── PHASE 1: STORAGE + INGEST ─────────────────────────────────────────────
   - id: storage-interface

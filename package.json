@@ -4,7 +4,7 @@
   "version": "0.0.1",
   "type": "module",
   "scripts": {
-    "dev": "pnpm -F server dev",
+    "dev": "concurrently -n server,client -c blue,green \"pnpm -F @baz-scm/pact-core dev\" \"pnpm -F @baz-scm/pact-client dev\"",
     "build": "pnpm -r build",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -13,6 +13,7 @@
     "check": "pnpm typecheck && pnpm lint && pnpm test"
   },
   "devDependencies": {
+    "concurrently": "^10.0.3",
     "eslint": "^9.0.0",
     "typescript": "^5.8.0",
     "typescript-eslint": "^8.0.0",

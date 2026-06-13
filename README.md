@@ -10,13 +10,45 @@ Plans from Claude Code and Cursor are automatically posted to PACT via editor ho
 docker run -p 3000:3000 -v ./data:/data ghcr.io/baz-scm/pact
 ```
 
-Then install the hooks:
+Then install the Claude Code plugin:
 
 ```bash
-npx @baz-scm/pact-hooks install --server http://localhost:3000
+claude plugin marketplace add baz-scm/PACT
+claude plugin install pact-hooks@baz
 ```
 
 Open Claude Code, enter plan mode — your plan appears at `http://localhost:3000/p/<token>`.
+
+## Configuration
+
+By default the hooks point at `http://localhost:3000`. To point at a hosted instance (e.g. `https://plan.baz.co`):
+
+```bash
+mkdir -p ~/.pact
+echo '{"server":"https://plan.baz.co"}' > ~/.pact/config.json
+```
+
+Full config options (`~/.pact/config.json`):
+
+```json
+{
+  "server": "https://plan.baz.co",
+  "enabled": true,
+  "nudge": true,
+  "redact": ["MY_SECRET_\\w+"],
+  "gate_timeout_seconds": 300
+}
+```
+
+| Field | Default | Description |
+|---|---|---|
+| `server` | `http://localhost:3000` | PACT server URL |
+| `enabled` | `true` | Enable/disable plan capture |
+| `nudge` | `true` | Show reminder when submitting long prompts without a plan |
+| `redact` | `[]` | Regex patterns — matching text is replaced with `[REDACTED]` before upload |
+| `gate_timeout_seconds` | `300` | How long the gate hook waits for approval |
+
+Per-repo overrides go in `.pact.json` at the repo root (same fields, merged on top of `~/.pact/config.json`).
 
 ## Development
 
