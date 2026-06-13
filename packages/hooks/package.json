@@ -1,21 +1,27 @@
 {
   "name": "@baz-scm/pact-hooks",
-  "version": "0.0.2",
+  "version": "0.0.4",
   "description": "Claude Code + Cursor hooks for PACT plan capture",
-  "files": ["dist", "hooks", ".claude-plugin"],
+  "files": [
+    "dist",
+    "hooks",
+    ".claude-plugin",
+    "src"
+  ],
   "bin": {
-    "pact-capture": "dist/src/cc-capture.js",
-    "pact-nudge": "dist/src/cc-nudge.js",
-    "pact-hooks": "dist/src/install.js"
+    "pact-capture": "dist/cc-capture.js",
+    "pact-nudge": "dist/cc-nudge.js",
+    "pact-hooks": "dist/install.js"
   },
   "scripts": {
-    "build": "tsc && node scripts/postbuild.mjs",
+    "build": "node scripts/build.mjs && node scripts/postbuild.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "esbuild": "^0.28.1",
     "tsx": "^4.0.0",
     "typescript": "^5.8.0",
     "vitest": "^3.0.0"

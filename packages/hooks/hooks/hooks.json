@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/dist/src/cc-capture.js\""
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/dist/cc-capture.js\""
           }
         ]
       }
@@ -16,7 +16,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/dist/src/cc-nudge.js\""
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/dist/cc-nudge.js\""
           }
         ]
       }

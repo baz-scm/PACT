@@ -37,6 +37,6 @@ npm-debug.log*
 pnpm-debug.log*
 
 # Build artifacts
+!packages/hooks/dist/
 packages/client/dist/
 packages/server/dist/
-packages/hooks/dist/
