@@ -50,7 +50,7 @@ tasks:
       Data types: PlanSeries, PlanVersion, Comment.
       No implementation — pure types + interface.
     depends_on: [scaffold]
-    status: todo
+    status: done
 
   - id: test-storage-sqlite
     title: "TEST: SQLite storage"
@@ -65,7 +65,7 @@ tasks:
         - comments: add, list, delete
       Use in-memory SQLite (:memory:). Tests fail until storage-sqlite is implemented.
     depends_on: [storage-interface]
-    status: todo
+    status: done
 
   - id: storage-sqlite
     title: SQLite storage implementation
@@ -79,7 +79,7 @@ tasks:
       expires_at = NOW + 24h on creation.
       All tests from test-storage-sqlite must pass.
     depends_on: [test-storage-sqlite]
-    status: todo
+    status: done
 
   - id: test-api-ingest
     title: "TEST: Ingestion + plan read APIs"
@@ -95,7 +95,7 @@ tasks:
         DELETE /api/plans/:series_id — delists (creator_token required)
         GET  /api/plans/:series_id — after delist → 404
     depends_on: [storage-sqlite]
-    status: todo
+    status: done
 
   - id: api-ingest
     title: Ingestion + plan CRUD API
@@ -110,7 +110,7 @@ tasks:
       POST /api/plans/:series_id/approve   body { creator_token }
       DELETE /api/plans/:series_id         body { creator_token }
     depends_on: [test-api-ingest]
-    status: todo
+    status: done
 
   - id: test-api-comments
     title: "TEST: Comments API + rate limiting"
@@ -121,7 +121,7 @@ tasks:
         DELETE /api/plans/:series_id/comments/:id — requires creator_token (plan creator)
         Rate limit: 6th POST within 1min from same IP → 429
     depends_on: [api-ingest]
-    status: todo
+    status: done
 
   - id: api-comments
     title: Comments API
@@ -130,7 +130,7 @@ tasks:
       POST/GET/DELETE /api/plans/:series_id/comments
       Rate limit: express-rate-limit, 5 req/min + 20 req/hr per IP+series.
     depends_on: [test-api-comments]
-    status: todo
+    status: done
 
   - id: api-sweep
     title: Expiry sweep job
@@ -139,7 +139,7 @@ tasks:
       SWEEP_INTERVAL_MS env var overrides default.
       Test: insert plan with expires_at = past → run sweep → GET returns 404.
     depends_on: [api-ingest]
-    status: todo
+    status: done
 
   - id: api-mcp
     title: MCP get_latest_plan endpoint
@@ -149,7 +149,7 @@ tasks:
         Tool: get_latest_plan(series_id: string) → PlanVersion
       Test: POST plan → approve → GET /mcp/get_latest_plan returns approved content.
     depends_on: [api-ingest]
-    status: todo
+    status: done
 
   # ── CHECKPOINT 1 ──────────────────────────────────────────────────────────
   - id: checkpoint-api
@@ -162,7 +162,7 @@ tasks:
         curl localhost:3000/api/plans/share/<token>
       All API + storage tests pass. No UI yet.
     depends_on: [api-comments, api-sweep, api-mcp]
-    status: todo
+    status: done
 
   # ── PHASE 2: VIEWER ───────────────────────────────────────────────────────
   - id: viewer-scaffold
@@ -174,7 +174,7 @@ tasks:
       Routes: / (landing: "paste your plan URL or install hooks"), /p/:share_token (viewer).
       packages/client/src/api.ts — typed fetch wrappers for all server routes.
     depends_on: [scaffold]
-    status: todo
+    status: done
 
   - id: viewer-markdown
     title: Markdown + Mermaid + checklist rendering
@@ -187,7 +187,7 @@ tasks:
       Fetch plan via GET /api/plans/share/:share_token on mount.
       Expiry countdown banner from expires_at.
     depends_on: [viewer-scaffold, api-ingest]
-    status: todo
+    status: done
 
   - id: viewer-edit
     title: In-place editing + Save
@@ -198,7 +198,7 @@ tasks:
       If no creator_token in localStorage → Edit/Save hidden (viewer-only).
       Optimistic UI: update display immediately, roll back on error.
     depends_on: [viewer-markdown]
-    status: todo
+    status: done
 
   - id: viewer-approve
     title: Approve action
@@ -207,7 +207,7 @@ tasks:
       POST /api/plans/:series_id/approve → button becomes "Approved ✓", disabled.
       This releases the CC blocking gate.
     depends_on: [viewer-edit]
-    status: todo
+    status: done
 
   - id: viewer-comments
     title: Comments UI
@@ -216,7 +216,7 @@ tasks:
       POST on submit. Rate-limit error shown as message.
       Creator: trash icon on each comment → DELETE.
     depends_on: [viewer-scaffold, api-comments]
-    status: todo
+    status: done
 
   - id: viewer-delist
     title: Delist + 404 UI
@@ -224,7 +224,7 @@ tasks:
       "Delete this plan" for creator → DELETE → redirect /.
       404 / expired: "This plan has expired or been removed."
     depends_on: [viewer-scaffold]
-    status: todo
+    status: done
 
   # ── CHECKPOINT 2 ──────────────────────────────────────────────────────────
   - id: checkpoint-viewer
@@ -239,7 +239,7 @@ tasks:
         6. GET /mcp/get_latest_plan → approved content
       No hooks yet — curl-only.
     depends_on: [viewer-approve, viewer-comments, viewer-delist]
-    status: todo
+    status: done
 
   # ── PHASE 3: HOOK BUNDLE ──────────────────────────────────────────────────
   - id: hooks-config
@@ -251,7 +251,7 @@ tasks:
       Defaults: enabled=true, server="http://localhost:3000", nudge=true, gate_timeout_seconds=300.
       State file: ~/.pact/state/<sha256_of_series_key>.json → { series_id, creator_token }.
     depends_on: [scaffold]
-    status: todo
+    status: done
 
   - id: test-hooks-config
     title: "TEST: Config loader + redact + series_key"
@@ -263,7 +263,7 @@ tasks:
         - Cursor series_key = absolute file path
         - State file: write + read round-trip
     depends_on: [hooks-config]
-    status: todo
+    status: done
 
   - id: hooks-cc-capture
     title: Claude Code capture hook (PreToolUse / ExitPlanMode)
@@ -275,7 +275,7 @@ tasks:
       Exit 0 always (must not block plan submission).
       Test: mock fetch, verify POST body + state written + URL printed.
     depends_on: [test-hooks-config, api-ingest]
-    status: todo
+    status: done
 
   - id: hooks-cc-gate
     title: Claude Code blocking review gate hook (PostToolUse / ExitPlanMode)
@@ -297,7 +297,7 @@ tasks:
       Disabled via config nudge=false.
       Test: short prompt → no output; long + no state → suggestion; long + state → quiet.
     depends_on: [hooks-config]
-    status: todo
+    status: done
 
   - id: hooks-cursor-capture
     title: Cursor capture hook (afterFileEdit)
@@ -328,7 +328,7 @@ tasks:
       pnpm -F hooks install (or npx @baz-scm/pact-hooks install) wires everything up.
       Open CC, enter plan mode → URL printed in terminal → plan visible in browser.
     depends_on: [hooks-cc-capture, hooks-cc-nudge]
-    status: todo
+    status: in_progress
 
   # ── CHECKPOINT 4 ──────────────────────────────────────────────────────────
   - id: checkpoint-round-trip
@@ -350,7 +350,7 @@ tasks:
         config reference, per-repo disable, self-host URL override.
       pnpm package: @baz-scm/pact-hooks.
     depends_on: [checkpoint-round-trip]
-    status: todo
+    status: in_progress
 
   # ── PHASE 4: DOCKER + PUBLISH ─────────────────────────────────────────────
   - id: docker
@@ -376,7 +376,7 @@ tasks:
     status: todo
 
   - id: npm-publish
-    title: CI: pnpm publish + Docker push
+    title: CI - pnpm publish + Docker push
     description: |
       GitHub Actions on tag vX.Y.Z:
         - pnpm publish @baz-scm/pact-core (server)

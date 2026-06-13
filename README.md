@@ -54,10 +54,11 @@ Per-repo overrides go in `.pact.json` at the repo root (same fields, merged on t
 
 ```bash
 pnpm install
-pnpm dev          # start server on :3000
+pnpm dev          # start server on :3000 + client on :5173
 pnpm test         # run all tests
 pnpm typecheck    # typecheck all packages
 pnpm build        # production build
+pnpm check        # typecheck + lint + test (CI)
 ```
 
 ## Project structure
