@@ -3,7 +3,7 @@ import crypto from 'node:crypto';
 import path from 'node:path';
 import { drizzle } from 'drizzle-orm/node-sqlite';
 import { migrate } from 'drizzle-orm/node-sqlite/migrator';
-import { eq, and, lt } from 'drizzle-orm';
+import { eq, and, lt, desc } from 'drizzle-orm';
 import { planSeries, planVersions, comments } from './schema';
 import type { IStorage, CreatePlanParams, PlanResult, Comment } from './interface';
 
@@ -39,6 +39,23 @@ export class SqliteStorage implements IStorage {
     this.db = drizzle({ client: this.client });
     // __dirname resolves to src/storage/ (tsx) or dist/storage/ → ../../drizzle is correct either way
     migrate(this.db, { migrationsFolder: path.resolve(__dirname, '../../drizzle') });
+  }
+
+  listAll(): PlanResult[] {
+    const rows = this.db
+      .select()
+      .from(planSeries)
+      .where(eq(planSeries.delisted, false))
+      .orderBy(desc(planSeries.created_at))
+      .all();
+    return rows.flatMap((series) => {
+      const version = this.db
+        .select()
+        .from(planVersions)
+        .where(eq(planVersions.series_id, series.id))
+        .get();
+      return version ? [toResult(series, version, false)] : [];
+    });
   }
 
   createPlan(params: CreatePlanParams): PlanResult {

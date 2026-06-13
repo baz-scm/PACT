@@ -35,7 +35,6 @@ __export(cc_capture_exports, {
   runCapture: () => runCapture
 });
 module.exports = __toCommonJS(cc_capture_exports);
-var fs2 = __toESM(require("fs"));
 
 // src/config.ts
 var fs = __toESM(require("fs"));
@@ -105,56 +104,62 @@ function writeState(series_key, state, homeDir) {
 }
 
 // src/cc-capture.ts
-function isPlanFile(filePath, homeDir) {
-  const home = homeDir.replace(/\/$/, "");
-  return /[/\\]\.claude(?:-[^/\\]*)?[/\\]plans[/\\][^/\\]+\.md$/.test(filePath) && filePath.startsWith(home);
+function allow() {
+  process.stdout.write(JSON.stringify({
+    hookSpecificOutput: {
+      hookEventName: "PermissionRequest",
+      decision: { behavior: "allow" }
+    }
+  }));
 }
 async function runCapture(input, env, cwd, homeDir) {
-  const home = homeDir ?? process.env.HOME ?? "";
   let envelope;
   try {
     envelope = JSON.parse(input);
   } catch {
     return;
   }
-  if (envelope.tool_name !== "Write" && envelope.tool_name !== "Edit") return;
-  const filePath = envelope.tool_input?.file_path;
-  if (!filePath || !isPlanFile(filePath, home)) return;
-  const config = loadConfig(cwd, home);
-  if (!config.enabled) return;
-  let content;
-  try {
-    content = fs2.readFileSync(filePath, "utf8");
-  } catch {
+  if (envelope.tool_name !== "ExitPlanMode") return;
+  const plan = envelope.tool_input?.plan ?? "";
+  if (!plan.trim()) return;
+  const config = loadConfig(cwd, homeDir);
+  if (!config.enabled) {
+    allow();
     return;
   }
-  const redacted = redactContent(content, config.redact);
+  const redacted = redactContent(plan, config.redact);
   const series_key = getCCSeriesKey(env);
-  const response = await fetch(`${config.server}/api/plans`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      series_key,
-      content: redacted,
-      author_kind: "agent",
-      source_tool: "claude-code"
-    })
-  });
-  if (!response.ok) {
-    process.stderr.write(`[PACT] Failed to capture plan: ${response.status}
-`);
-    return;
-  }
-  const data = await response.json();
-  const share_url = `${config.server}/p/${data.share_token}`;
-  writeState(series_key, {
-    series_id: data.series_id,
-    creator_token: data.creator_token,
-    share_url
-  }, homeDir);
-  process.stderr.write(`
+  try {
+    const response = await fetch(`${config.server}/api/plans`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        series_key,
+        content: redacted,
+        author_kind: "agent",
+        source_tool: "claude-code"
+      })
+    });
+    if (response.ok) {
+      const data = await response.json();
+      const share_url = `${config.server}/p/${data.share_token}`;
+      writeState(series_key, {
+        series_id: data.series_id,
+        creator_token: data.creator_token,
+        share_url
+      }, homeDir);
+      process.stderr.write(`
 Plan captured: ${share_url}#token=${data.creator_token}
 `);
+    } else {
+      process.stderr.write(`[PACT] Failed to capture plan: ${response.status}
+`);
+    }
+  } catch (e) {
+    process.stderr.write(`[PACT] Error: ${e}
+`);
+  }
+  allow();
 }
 if (require.main === module) {
   async function main() {
@@ -169,7 +174,10 @@ if (require.main === module) {
     await runCapture(input, process.env, process.cwd());
     process.exit(0);
   }
-  main().catch(() => process.exit(0));
+  main().catch(() => {
+    allow();
+    process.exit(0);
+  });
 }
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {

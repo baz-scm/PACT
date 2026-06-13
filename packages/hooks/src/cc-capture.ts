@@ -1,13 +1,12 @@
 #!/usr/bin/env node
-import * as fs from 'fs';
 import { loadConfig, redactContent, getCCSeriesKey, writeState } from './config';
 
 export { readState } from './config';
 
-interface ToolUseEnvelope {
+interface PermissionRequestEnvelope {
   tool_name: string;
   tool_input: {
-    file_path?: string;
+    plan?: string;
   };
 }
 
@@ -17,10 +16,13 @@ interface PlanResponse {
   share_token: string;
 }
 
-function isPlanFile(filePath: string, homeDir: string): boolean {
-  const home = homeDir.replace(/\/$/, '');
-  return /[/\\]\.claude(?:-[^/\\]*)?[/\\]plans[/\\][^/\\]+\.md$/.test(filePath) &&
-    filePath.startsWith(home);
+function allow(): void {
+  process.stdout.write(JSON.stringify({
+    hookSpecificOutput: {
+      hookEventName: 'PermissionRequest',
+      decision: { behavior: 'allow' },
+    },
+  }));
 }
 
 export async function runCapture(
@@ -29,59 +31,53 @@ export async function runCapture(
   cwd?: string,
   homeDir?: string
 ): Promise<void> {
-  const home = homeDir ?? process.env.HOME ?? '';
-
-  let envelope: ToolUseEnvelope;
+  let envelope: PermissionRequestEnvelope;
   try {
-    envelope = JSON.parse(input) as ToolUseEnvelope;
+    envelope = JSON.parse(input) as PermissionRequestEnvelope;
   } catch {
     return;
   }
 
-  if (envelope.tool_name !== 'Write' && envelope.tool_name !== 'Edit') return;
+  if (envelope.tool_name !== 'ExitPlanMode') return;
 
-  const filePath = envelope.tool_input?.file_path;
-  if (!filePath || !isPlanFile(filePath, home)) return;
+  const plan = envelope.tool_input?.plan ?? '';
+  if (!plan.trim()) return;
 
-  const config = loadConfig(cwd, home);
-  if (!config.enabled) return;
+  const config = loadConfig(cwd, homeDir);
+  if (!config.enabled) { allow(); return; }
 
-  let content: string;
-  try {
-    content = fs.readFileSync(filePath, 'utf8');
-  } catch {
-    return;
-  }
-
-  const redacted = redactContent(content, config.redact);
+  const redacted = redactContent(plan, config.redact);
   const series_key = getCCSeriesKey(env);
 
-  const response = await fetch(`${config.server}/api/plans`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      series_key,
-      content: redacted,
-      author_kind: 'agent',
-      source_tool: 'claude-code',
-    }),
-  });
+  try {
+    const response = await fetch(`${config.server}/api/plans`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        series_key,
+        content: redacted,
+        author_kind: 'agent',
+        source_tool: 'claude-code',
+      }),
+    });
 
-  if (!response.ok) {
-    process.stderr.write(`[PACT] Failed to capture plan: ${response.status}\n`);
-    return;
+    if (response.ok) {
+      const data = (await response.json()) as PlanResponse;
+      const share_url = `${config.server}/p/${data.share_token}`;
+      writeState(series_key, {
+        series_id: data.series_id,
+        creator_token: data.creator_token,
+        share_url,
+      }, homeDir);
+      process.stderr.write(`\nPlan captured: ${share_url}#token=${data.creator_token}\n`);
+    } else {
+      process.stderr.write(`[PACT] Failed to capture plan: ${response.status}\n`);
+    }
+  } catch (e) {
+    process.stderr.write(`[PACT] Error: ${e}\n`);
   }
 
-  const data = (await response.json()) as PlanResponse;
-  const share_url = `${config.server}/p/${data.share_token}`;
-
-  writeState(series_key, {
-    series_id: data.series_id,
-    creator_token: data.creator_token,
-    share_url,
-  }, homeDir);
-
-  process.stderr.write(`\nPlan captured: ${share_url}#token=${data.creator_token}\n`);
+  allow();
 }
 
 if (require.main === module) {
@@ -95,5 +91,5 @@ if (require.main === module) {
     await runCapture(input, process.env as Record<string, string | undefined>, process.cwd());
     process.exit(0);
   }
-  main().catch(() => process.exit(0));
+  main().catch(() => { allow(); process.exit(0); });
 }

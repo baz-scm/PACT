@@ -8,7 +8,7 @@ export function ExpiryBanner({ expiresAt }: Props) {
   const hours = Math.ceil(ms / 3600000);
   const label = hours < 2 ? `${Math.ceil(ms / 60000)} minutes` : `${hours} hours`;
   return (
-    <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm px-4 py-2 rounded-md">
+    <div className="text-sm px-4 py-2 rounded-md" style={{ backgroundColor: 'var(--warn-bg)', border: '1px solid var(--warn-fg)', color: 'var(--warn-fg)' }}>
       Expires in {label}
     </div>
   );

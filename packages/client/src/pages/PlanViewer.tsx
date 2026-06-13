@@ -7,9 +7,16 @@ import { api, type PlanResponse } from '../api';
 import { ExpiryBanner } from '../components/ExpiryBanner';
 import { MermaidBlock } from '../components/MermaidBlock';
 import { Comments } from '../components/Comments';
+import { ThemeToggle } from '../components/ThemeToggle';
+import { Footer } from '../components/Footer';
 
 function getCreatorToken(series_id: string): string | null {
   return localStorage.getItem(`pact_token_${series_id}`);
+}
+
+function extractTitle(content: string): string {
+  const firstLine = content.split('\n').find((l) => l.trim());
+  return firstLine?.replace(/^#+\s*/, '').trim() ?? '';
 }
 
 export function PlanViewer() {
@@ -42,16 +49,16 @@ export function PlanViewer() {
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p className="text-gray-500 text-lg">{error}</p>
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--bg)' }}>
+        <p style={{ color: 'var(--text-tertiary)' }}>{error}</p>
       </div>
     );
   }
 
   if (!plan) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p className="text-gray-400">Loading…</p>
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--bg)' }}>
+        <p style={{ color: 'var(--text-tertiary)' }}>Loading…</p>
       </div>
     );
   }
@@ -103,94 +110,144 @@ export function PlanViewer() {
     }
   }
 
+  const title = extractTitle(plan.content);
+
   return (
-    <div className="max-w-3xl mx-auto px-4 py-8">
-      <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
+    <div className="min-h-screen" style={{ backgroundColor: 'var(--bg)' }}>
+      {/* Top bar */}
+      <header
+        className="sticky top-0 z-10 flex items-center justify-between px-5 py-3 border-b"
+        style={{ backgroundColor: 'var(--bg)', borderColor: 'var(--border)' }}
+      >
+        <button
+          onClick={() => navigate('/')}
+          className="flex items-center gap-1.5 text-sm transition-colors"
+          style={{ color: 'var(--text-tertiary)' }}
+          onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--text-primary)')}
+          onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-tertiary)')}
+        >
+          ← Back
+        </button>
+
         <div className="flex items-center gap-2">
           {plan.approved && (
-            <span className="text-sm bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">
+            <span
+              className="text-xs font-medium px-2 py-0.5 rounded-full"
+              style={{ backgroundColor: 'var(--success-bg)', color: 'var(--success-fg)' }}
+            >
               Approved ✓
             </span>
           )}
+          <ThemeToggle />
         </div>
-        <div className="flex items-center gap-2">
-          {isCreator && !editing && !plan.approved && (
-            <button
-              onClick={approve}
-              disabled={approving}
-              className="px-3 py-1.5 text-sm bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
-            >
-              {approving ? 'Approving…' : 'Approve'}
-            </button>
-          )}
-          {isCreator && !editing && (
+      </header>
+
+      <main className="max-w-3xl mx-auto px-4 py-8">
+        {/* Plan title */}
+        {title && (
+          <h1 className="text-xl font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>
+            {title}
+          </h1>
+        )}
+        <p className="text-xs mb-4" style={{ color: 'var(--text-tertiary)' }}>
+          {new Date(plan.created_at).toLocaleString()} · {plan.source_tool}
+        </p>
+
+        {/* Action bar */}
+        {isCreator && !editing && (
+          <div className="flex items-center gap-2 mb-4 flex-wrap">
+            {!plan.approved && (
+              <button
+                onClick={approve}
+                disabled={approving}
+                className="px-4 py-1.5 text-sm font-medium rounded-md text-white transition-colors disabled:opacity-50"
+                style={{ backgroundColor: 'var(--action-primary)' }}
+                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--action-primary-hover)')}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'var(--action-primary)')}
+              >
+                {approving ? 'Approving…' : '✓ Approve'}
+              </button>
+            )}
             <button
               onClick={startEdit}
-              className="px-3 py-1.5 text-sm border rounded hover:bg-gray-50"
+              className="px-3 py-1.5 text-sm rounded-md border transition-colors"
+              style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)', backgroundColor: 'transparent' }}
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--bg-section)')}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
             >
               Edit
             </button>
-          )}
-          {isCreator && !editing && (
             <button
               onClick={delist}
               disabled={delisting}
-              className="px-3 py-1.5 text-sm text-red-500 border border-red-200 rounded hover:bg-red-50 disabled:opacity-50"
+              className="px-3 py-1.5 text-sm rounded-md border transition-colors disabled:opacity-50"
+              style={{ borderColor: 'var(--error-fg)', color: 'var(--error-fg)', backgroundColor: 'transparent' }}
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--error-bg)')}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
             >
               Delete
             </button>
-          )}
-        </div>
-      </div>
-
-      <ExpiryBanner expiresAt={plan.expires_at} />
-
-      <div className="mt-4">
-        {editing ? (
-          <div>
-            <textarea
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              className="w-full border rounded p-3 font-mono text-sm resize-none h-96 focus:outline-none focus:ring-2 focus:ring-blue-300"
-            />
-            <div className="flex gap-2 mt-2">
-              <button
-                onClick={save}
-                disabled={saving}
-                className="px-4 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:opacity-50"
-              >
-                {saving ? 'Saving…' : 'Save'}
-              </button>
-              <button
-                onClick={() => setEditing(false)}
-                className="px-4 py-1.5 text-sm border rounded hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className="prose prose-gray max-w-none">
-            <ReactMarkdown
-              remarkPlugins={[remarkGfm]}
-              rehypePlugins={[rehypeHighlight]}
-              components={{
-                code({ className, children, ...props }) {
-                  const lang = /language-(\w+)/.exec(className ?? '')?.[1];
-                  if (lang === 'mermaid') {
-                    return <MermaidBlock code={String(children).trim()} />;
-                  }
-                  return <code className={className} {...props}>{children}</code>;
-                },
-              }}
-            >
-              {plan.content}
-            </ReactMarkdown>
           </div>
         )}
-      </div>
 
-      <Comments series_id={plan.series_id} creator_token={creator_token} />
+        <ExpiryBanner expiresAt={plan.expires_at} />
+
+        <div className="mt-4">
+          {editing ? (
+            <div>
+              <textarea
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                className="w-full rounded-md p-3 text-sm resize-none h-96 focus:outline-none"
+                style={{
+                  border: `1px solid var(--border)`,
+                  backgroundColor: 'var(--bg-card)',
+                  color: 'var(--text-primary)',
+                  fontFamily: 'JetBrains Mono, monospace',
+                }}
+              />
+              <div className="flex gap-2 mt-2">
+                <button
+                  onClick={save}
+                  disabled={saving}
+                  className="px-4 py-1.5 text-sm font-medium rounded-md text-white disabled:opacity-50"
+                  style={{ backgroundColor: 'var(--action-primary)' }}
+                >
+                  {saving ? 'Saving…' : 'Save'}
+                </button>
+                <button
+                  onClick={() => setEditing(false)}
+                  className="px-4 py-1.5 text-sm rounded-md border"
+                  style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)' }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="prose prose-gray dark:prose-invert max-w-none">
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                rehypePlugins={[rehypeHighlight]}
+                components={{
+                  code({ className, children, ...props }) {
+                    const lang = /language-(\w+)/.exec(className ?? '')?.[1];
+                    if (lang === 'mermaid') {
+                      return <MermaidBlock code={String(children).trim()} />;
+                    }
+                    return <code className={className} {...props}>{children}</code>;
+                  },
+                }}
+              >
+                {plan.content}
+              </ReactMarkdown>
+            </div>
+          )}
+        </div>
+
+        <Comments series_id={plan.series_id} creator_token={creator_token} />
+        <Footer />
+      </main>
     </div>
   );
 }

@@ -28,8 +28,14 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  listAll: () =>
+    request<PlanResponse[]>('/api/plans'),
+
   getByShareToken: (share_token: string) =>
     request<PlanResponse>(`/api/plans/share/${share_token}`),
+
+  getBySeriesId: (series_id: string) =>
+    request<PlanResponse>(`/api/plans/${series_id}`),
 
   savePlan: (series_id: string, content: string, creator_token: string) =>
     request<PlanResponse>(`/api/plans/${series_id}`, {

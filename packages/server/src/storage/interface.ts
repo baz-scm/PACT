@@ -48,6 +48,7 @@ export interface PlanResult {
 }
 
 export interface IStorage {
+  listAll(): PlanResult[];
   createPlan(params: CreatePlanParams): PlanResult;
   getLatestBySeriesKey(series_key: string): PlanResult | null;
   getLatestBySeriesId(series_id: string): PlanResult | null;

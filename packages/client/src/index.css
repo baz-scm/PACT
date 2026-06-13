@@ -1,2 +1,58 @@
 @import "tailwindcss";
-@import "highlight.js/styles/github.css";
+@plugin "@tailwindcss/typography";
+@import "./tokens.css";
+@import "highlight.js/styles/github-dark-dimmed.css";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+body {
+  font-family: "Inter", sans-serif;
+  background-color: var(--bg);
+  color: var(--text-primary);
+}
+
+code,
+pre {
+  font-family: "JetBrains Mono", monospace;
+}
+
+.prose a {
+  color: var(--action-primary);
+}
+.prose thead {
+  border-bottom-color: var(--border);
+}
+.prose tbody tr {
+  border-bottom-color: var(--border);
+}
+
+/* Code blocks — unify prose + hljs styling, no double border in dark mode */
+.prose pre {
+  background-color: var(--bg-section);
+  border: 1px solid var(--border);
+  padding: 0;
+}
+.prose pre code.hljs,
+.prose pre code {
+  background: transparent;
+  border: none;
+  padding: 1em 1.25em;
+  display: block;
+}
+
+/* Typography plugin adds backticks via pseudo-elements — remove them */
+.prose code::before,
+.prose code::after {
+  content: none;
+}
+
+/* Inline code — override hljs which clobbers prose's background */
+.prose :not(pre) > code {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.875em;
+  background-color: var(--bg-section);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.15em 0.4em;
+  color: var(--text-primary);
+}

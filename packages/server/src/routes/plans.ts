@@ -18,6 +18,11 @@ function planResponse(result: NonNullable<ReturnType<IStorage['getLatestBySeries
 export function plansRouter(storage: IStorage, plansTtlHours: number): IRouter {
   const router = Router();
 
+  router.get('/', (_req, res) => {
+    const results = storage.listAll();
+    return res.json(results.map(planResponse));
+  });
+
   router.post('/', (req, res) => {
     const { series_key, content, author_kind, source_tool } = req.body ?? {};
     if (!series_key || !content || !author_kind || !source_tool) {
