@@ -1,0 +1,386 @@
+project: pact
+description: PACT OSS core (AGPL) — free, self-hostable ephemeral plan server
+approach: TDD — each feature block starts with a failing test, then implementation.
+
+# Scope: OSS/free tier only. Paid tier lives in closed monorepo.
+# Stack: Node/TS + Express backend, React + Vite frontend, SQLite, pnpm workspaces.
+
+tasks:
+
+  # ── PHASE 0: SCAFFOLD ─────────────────────────────────────────────────────
+  - id: scaffold
+    title: Project scaffold
+    description: |
+      Init pnpm monorepo:
+        packages/server   — Node/TS Express backend
+        packages/client   — React + Vite frontend
+        packages/hooks    — CC + Cursor hook scripts
+      Root files:
+        pnpm-workspace.yaml
+        package.json (root — scripts: dev, build, test, lint, typecheck)
+        tsconfig.base.json
+        .eslintrc / eslint.config.ts
+        .prettierrc
+        .gitignore
+        vitest.config.ts (root, references each package)
+      GitHub Actions CI: lint + typecheck + test on push.
+      packages/server: Express app factory (createApp), index.ts entry, GET /healthz → 200.
+
+      README.md (root): project overview, quick-start (pnpm install && pnpm dev),
+        self-host snippet (docker run), hook install one-liner, link to PRD.
+
+      CLAUDE.md (root): codebase orientation for AI agents —
+        - Repo layout (packages/server, client, hooks)
+        - Key invariants (storage interface must stay backend-agnostic,
+            free tier = single version row per series,
+            creator_token is the only auth primitive in free tier)
+        - Test approach (Vitest, supertest against real :memory: SQLite, no mocks for DB)
+        - pnpm commands (pnpm dev, pnpm test, pnpm -F server test, etc.)
+        - Where paid-tier extension seams are (IStorage, IAuth, capability flags)
+    status: todo
+
+  # ── PHASE 1: STORAGE + INGEST ─────────────────────────────────────────────
+  - id: storage-interface
+    title: Storage interface (types only)
+    description: |
+      packages/server/src/storage/interface.ts — IStorage TypeScript interface.
+      Operations: createPlan, getLatestBySeriesKey, getLatestBySeriesId, getPlanById,
+        savePlan (overwrite for free), approvePlan, delistPlan, expirePlans,
+        addComment, getComments, deleteComment.
+      Data types: PlanSeries, PlanVersion, Comment.
+      No implementation — pure types + interface.
+    depends_on: [scaffold]
+    status: todo
+
+  - id: test-storage-sqlite
+    title: "TEST: SQLite storage"
+    description: |
+      Write failing Vitest tests for SQLite IStorage impl before writing impl:
+        - createPlan creates series + version row
+        - dedup: same content hash → returns existing version, no new row
+        - savePlan overwrites (free tier: single version row)
+        - approvePlan sets approved flag
+        - expirePlans deletes rows where expires_at < NOW
+        - delistPlan sets delisted flag
+        - comments: add, list, delete
+      Use in-memory SQLite (:memory:). Tests fail until storage-sqlite is implemented.
+    depends_on: [storage-interface]
+    status: todo
+
+  - id: storage-sqlite
+    title: SQLite storage implementation
+    description: |
+      Implement IStorage with better-sqlite3.
+      Schema (built-in migration runner — no external tool):
+        plan_series(id, series_key, share_token, expires_at, delisted, creator_token, approved, created_at)
+        plan_versions(id, series_id, content, content_hash, author_kind, source_tool, created_at)
+        comments(id, series_id, body, ip_hash, created_at)
+      Content hash: SHA-256; skip write if matches latest version.
+      expires_at = NOW + 24h on creation.
+      All tests from test-storage-sqlite must pass.
+    depends_on: [test-storage-sqlite]
+    status: todo
+
+  - id: test-api-ingest
+    title: "TEST: Ingestion + plan read APIs"
+    description: |
+      Failing tests (supertest against Express app, real :memory: SQLite — no mocks):
+        POST /api/plans — creates series, returns { series_id, version_id, share_token, url, expires_at, creator_token }
+        POST /api/plans (same series_key, same content) — dedup, returns existing
+        POST /api/plans (same series_key, new content) — new version_id
+        GET  /api/plans/:series_id — returns latest version content
+        GET  /api/plans/share/:share_token — resolves token → plan
+        PUT  /api/plans/:series_id — saves content (creator_token required)
+        POST /api/plans/:series_id/approve — sets approved=true (creator_token required)
+        DELETE /api/plans/:series_id — delists (creator_token required)
+        GET  /api/plans/:series_id — after delist → 404
+    depends_on: [storage-sqlite]
+    status: todo
+
+  - id: api-ingest
+    title: Ingestion + plan CRUD API
+    description: |
+      Implement routes to make test-api-ingest pass.
+      POST /api/plans: body { series_key, content, author_kind, source_tool }
+        → apply redact patterns (config, defense-in-depth)
+        → returns { series_id, version_id, share_token, url, expires_at, creator_token }
+      GET  /api/plans/:series_id
+      GET  /api/plans/share/:share_token
+      PUT  /api/plans/:series_id           body { content, creator_token }
+      POST /api/plans/:series_id/approve   body { creator_token }
+      DELETE /api/plans/:series_id         body { creator_token }
+    depends_on: [test-api-ingest]
+    status: todo
+
+  - id: test-api-comments
+    title: "TEST: Comments API + rate limiting"
+    description: |
+      Failing tests:
+        POST /api/plans/:series_id/comments — adds comment, returns Comment
+        GET  /api/plans/:series_id/comments — returns Comment[]
+        DELETE /api/plans/:series_id/comments/:id — requires creator_token (plan creator)
+        Rate limit: 6th POST within 1min from same IP → 429
+    depends_on: [api-ingest]
+    status: todo
+
+  - id: api-comments
+    title: Comments API
+    description: |
+      Implement routes to make test-api-comments pass.
+      POST/GET/DELETE /api/plans/:series_id/comments
+      Rate limit: express-rate-limit, 5 req/min + 20 req/hr per IP+series.
+    depends_on: [test-api-comments]
+    status: todo
+
+  - id: api-sweep
+    title: Expiry sweep job
+    description: |
+      setInterval (default 5min) calls storage.expirePlans() — hard-delete expired series + cascade.
+      SWEEP_INTERVAL_MS env var overrides default.
+      Test: insert plan with expires_at = past → run sweep → GET returns 404.
+    depends_on: [api-ingest]
+    status: todo
+
+  - id: api-mcp
+    title: MCP get_latest_plan endpoint
+    description: |
+      GET /mcp/get_latest_plan?series_id=<id> → { series_id, content, version_id, approved }
+      HTTP MCP tools/list + tools/call (streamable-HTTP transport):
+        Tool: get_latest_plan(series_id: string) → PlanVersion
+      Test: POST plan → approve → GET /mcp/get_latest_plan returns approved content.
+    depends_on: [api-ingest]
+    status: todo
+
+  # ── CHECKPOINT 1 ──────────────────────────────────────────────────────────
+  - id: checkpoint-api
+    title: "CHECKPOINT: API usable locally"
+    description: |
+      pnpm dev starts server on :3000. You can:
+        curl -X POST localhost:3000/api/plans \
+          -H 'Content-Type: application/json' \
+          -d '{"series_key":"test","content":"# Hello","author_kind":"agent","source_tool":"claude-code"}'
+        curl localhost:3000/api/plans/share/<token>
+      All API + storage tests pass. No UI yet.
+    depends_on: [api-comments, api-sweep, api-mcp]
+    status: todo
+
+  # ── PHASE 2: VIEWER ───────────────────────────────────────────────────────
+  - id: viewer-scaffold
+    title: React app scaffold
+    description: |
+      Vite + React + TypeScript + Tailwind CSS in packages/client.
+      Backend serves built client; /p/* routes return index.html (SPA).
+      In dev: Vite proxy /api/* → backend.
+      Routes: / (landing: "paste your plan URL or install hooks"), /p/:share_token (viewer).
+      packages/client/src/api.ts — typed fetch wrappers for all server routes.
+    depends_on: [scaffold]
+    status: todo
+
+  - id: viewer-markdown
+    title: Markdown + Mermaid + checklist rendering
+    description: |
+      PlanView component:
+        - react-markdown + remark-gfm
+        - rehype-highlight (or shiki) for code syntax
+        - ```mermaid fences → mermaid.js render
+        - GFM task list items → interactive checkboxes (toggle updates edit buffer, no auto-save)
+      Fetch plan via GET /api/plans/share/:share_token on mount.
+      Expiry countdown banner from expires_at.
+    depends_on: [viewer-scaffold, api-ingest]
+    status: todo
+
+  - id: viewer-edit
+    title: In-place editing + Save
+    description: |
+      Edit button toggles markdown textarea. Save + Cancel appear.
+      Save: PUT /api/plans/:series_id (creator_token from localStorage keyed by series_id).
+      Cancel: revert, no API call.
+      If no creator_token in localStorage → Edit/Save hidden (viewer-only).
+      Optimistic UI: update display immediately, roll back on error.
+    depends_on: [viewer-markdown]
+    status: todo
+
+  - id: viewer-approve
+    title: Approve action
+    description: |
+      "Approve" button (creator only).
+      POST /api/plans/:series_id/approve → button becomes "Approved ✓", disabled.
+      This releases the CC blocking gate.
+    depends_on: [viewer-edit]
+    status: todo
+
+  - id: viewer-comments
+    title: Comments UI
+    description: |
+      Comment list (body + relative time) + textarea + Post button below plan.
+      POST on submit. Rate-limit error shown as message.
+      Creator: trash icon on each comment → DELETE.
+    depends_on: [viewer-scaffold, api-comments]
+    status: todo
+
+  - id: viewer-delist
+    title: Delist + 404 UI
+    description: |
+      "Delete this plan" for creator → DELETE → redirect /.
+      404 / expired: "This plan has expired or been removed."
+    depends_on: [viewer-scaffold]
+    status: todo
+
+  # ── CHECKPOINT 2 ──────────────────────────────────────────────────────────
+  - id: checkpoint-viewer
+    title: "CHECKPOINT: Full local workflow without hooks"
+    description: |
+      Manual end-to-end:
+        1. POST plan via curl → get share URL
+        2. Open in browser → rendered markdown, mermaid, checkboxes, expiry banner
+        3. Edit in browser → Save
+        4. Add comment
+        5. Click Approve
+        6. GET /mcp/get_latest_plan → approved content
+      No hooks yet — curl-only.
+    depends_on: [viewer-approve, viewer-comments, viewer-delist]
+    status: todo
+
+  # ── PHASE 3: HOOK BUNDLE ──────────────────────────────────────────────────
+  - id: hooks-config
+    title: Hook config system
+    description: |
+      packages/hooks/src/config.ts
+      Config: per-repo .pact.json (git-shareable) merged over global ~/.pact/config.json.
+      Shape: { enabled, server, redact: string[], nudge, gate_timeout_seconds }
+      Defaults: enabled=true, server="http://localhost:3000", nudge=true, gate_timeout_seconds=300.
+      State file: ~/.pact/state/<sha256_of_series_key>.json → { series_id, creator_token }.
+    depends_on: [scaffold]
+    status: todo
+
+  - id: test-hooks-config
+    title: "TEST: Config loader + redact + series_key"
+    description: |
+      Unit tests (no network, no FS side-effects):
+        - Config merge: per-repo overrides global field by field
+        - Redact: pattern applied, sensitive content replaced with [REDACTED]
+        - CC series_key derivation from env vars
+        - Cursor series_key = absolute file path
+        - State file: write + read round-trip
+    depends_on: [hooks-config]
+    status: todo
+
+  - id: hooks-cc-capture
+    title: Claude Code capture hook (PreToolUse / ExitPlanMode)
+    description: |
+      packages/hooks/src/cc-capture.ts — CC PreToolUse hook on ExitPlanMode.
+      Reads CC hook envelope from stdin (JSON). Extracts plan content from tool_input.
+      Derives series_key: "<CLAUDE_SESSION_ID>:<cwd>:<git_branch>".
+      Applies redact. POSTs /api/plans. Stashes state file. Prints share URL to stdout.
+      Exit 0 always (must not block plan submission).
+      Test: mock fetch, verify POST body + state written + URL printed.
+    depends_on: [test-hooks-config, api-ingest]
+    status: todo
+
+  - id: hooks-cc-gate
+    title: Claude Code blocking review gate hook (PostToolUse / ExitPlanMode)
+    description: |
+      packages/hooks/src/cc-gate.ts — CC PostToolUse hook on ExitPlanMode.
+      Reads state file for current series_key.
+      Polls GET /api/plans/:series_id/latest every 3s until approved=true OR gate_timeout_seconds.
+      On approval: outputs { type: "inject_context", content: <plan_markdown> } for CC.
+      On timeout: logs "Web review timed out, proceeding." Exit 0.
+      Test: mock server → approved on 2nd poll; timeout path exits 0.
+    depends_on: [hooks-cc-capture]
+    status: todo
+
+  - id: hooks-cc-nudge
+    title: Claude Code plan-mode nudge hook (UserPromptSubmit)
+    description: |
+      packages/hooks/src/cc-nudge.ts — CC UserPromptSubmit hook.
+      Prompt > 200 chars AND no active state file for cwd/branch → suggest plan mode.
+      Disabled via config nudge=false.
+      Test: short prompt → no output; long + no state → suggestion; long + state → quiet.
+    depends_on: [hooks-config]
+    status: todo
+
+  - id: hooks-cursor-capture
+    title: Cursor capture hook (afterFileEdit)
+    description: |
+      packages/hooks/src/cursor-capture.ts — Cursor afterFileEdit hook.
+      Watches ~/cursor-plans/**/*.md, .cursor/plans/**/*.md.
+      series_key = absolute plan file path.
+      Same flow: redact, POST, stash state, print URL.
+    depends_on: [hooks-config, api-ingest]
+    status: todo
+
+  - id: hooks-cursor-sync
+    title: Cursor plan file sync (round-trip)
+    description: |
+      packages/hooks/src/cursor-sync.ts
+      Polls /api/plans/:series_id/latest every 3s until approved OR timeout.
+      Writes approved content back to plan file (= series_key).
+      Called from cursor-capture after push.
+    depends_on: [hooks-cursor-capture]
+    status: todo
+
+  # ── CHECKPOINT 3 ──────────────────────────────────────────────────────────
+  - id: checkpoint-hooks-install
+    title: "CHECKPOINT: Hooks installable, CC capture works"
+    description: |
+      packages/hooks/install.sh: compile hooks, copy to ~/.claude/hooks/, write default config.
+      pnpm -F hooks build produces dist/ with runnable hook scripts.
+      pnpm -F hooks install (or npx @baz-scm/pact-hooks install) wires everything up.
+      Open CC, enter plan mode → URL printed in terminal → plan visible in browser.
+    depends_on: [hooks-cc-capture, hooks-cc-nudge]
+    status: todo
+
+  # ── CHECKPOINT 4 ──────────────────────────────────────────────────────────
+  - id: checkpoint-round-trip
+    title: "CHECKPOINT: Full CC round-trip end-to-end"
+    description: |
+      1. CC plan mode → capture hook fires → URL in terminal
+      2. Human approves in browser
+      3. Gate hook detects approval → injects reviewed plan into CC context
+      4. CC proceeds with human-approved plan
+      Integration test: fake CC env vars + mock server → verify inject_context output.
+    depends_on: [hooks-cc-gate, hooks-cursor-sync]
+    status: todo
+
+  - id: hooks-install
+    title: Hook install script + docs
+    description: |
+      packages/hooks/install.sh — wire all three CC hooks + Cursor instructions.
+      packages/hooks/README.md: what each hook does, install steps (pnpm dlx / curl | sh),
+        config reference, per-repo disable, self-host URL override.
+      pnpm package: @baz-scm/pact-hooks.
+    depends_on: [checkpoint-round-trip]
+    status: todo
+
+  # ── PHASE 4: DOCKER + PUBLISH ─────────────────────────────────────────────
+  - id: docker
+    title: Docker image (self-host)
+    description: |
+      Multi-stage Dockerfile:
+        Stage 1 (build): node:20-alpine, pnpm install --frozen-lockfile, pnpm build.
+        Stage 2 (run): node:20-alpine, copy dist, EXPOSE 3000.
+      Env: PORT, DATA_DIR, SWEEP_INTERVAL_MS, GATE_TIMEOUT_SECONDS.
+      Volume: /data.
+      docker-compose.yml: single-service, volume mount, env example.
+    depends_on: [checkpoint-viewer]
+    status: todo
+
+  # ── CHECKPOINT 5 ──────────────────────────────────────────────────────────
+  - id: checkpoint-docker
+    title: "CHECKPOINT: Self-hostable via docker run"
+    description: |
+      docker run -p 3000:3000 -v ./data:/data ghcr.io/baz-scm/pact
+      Full stack: browser viewer + API + SQLite + sweep job.
+      Point hooks at localhost:3000 → full round-trip works against self-hosted instance.
+    depends_on: [docker]
+    status: todo
+
+  - id: npm-publish
+    title: CI: pnpm publish + Docker push
+    description: |
+      GitHub Actions on tag vX.Y.Z:
+        - pnpm publish @baz-scm/pact-core (server)
+        - pnpm publish @baz-scm/pact-hooks (hooks)
+        - Push ghcr.io/baz-scm/pact Docker image
+    depends_on: [checkpoint-docker]
+    status: todo

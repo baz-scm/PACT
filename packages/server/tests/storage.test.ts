@@ -1,0 +1,196 @@
+import { describe, it, expect, beforeEach } from 'vitest';
+import { SqliteStorage } from '../src/storage/sqlite';
+
+function makeStorage() {
+  return new SqliteStorage(':memory:');
+}
+
+const base = {
+  series_key: 'session1::/repo:main',
+  content: '# Plan\n\nDo the thing.',
+  author_kind: 'agent' as const,
+  source_tool: 'claude-code' as const,
+};
+
+describe('SqliteStorage', () => {
+  let storage: SqliteStorage;
+
+  beforeEach(() => {
+    storage = makeStorage();
+  });
+
+  describe('createPlan', () => {
+    it('creates series and version', () => {
+      const result = storage.createPlan(base);
+      expect(result.series.id).toBeTruthy();
+      expect(result.series.series_key).toBe(base.series_key);
+      expect(result.series.share_token).toBeTruthy();
+      expect(result.series.creator_token).toBeTruthy();
+      expect(result.series.approved).toBe(false);
+      expect(result.series.delisted).toBe(false);
+      expect(result.version.content).toBe(base.content);
+      expect(result.version.author_kind).toBe('agent');
+      expect(result.deduped).toBe(false);
+    });
+
+    it('sets expires_at 24h from now by default', () => {
+      const before = Date.now();
+      const result = storage.createPlan(base);
+      const after = Date.now();
+      const exp = result.series.expires_at.getTime();
+      expect(exp).toBeGreaterThanOrEqual(before + 24 * 3600 * 1000 - 1000);
+      expect(exp).toBeLessThanOrEqual(after + 24 * 3600 * 1000 + 1000);
+    });
+
+    it('deduplicates on same content hash', () => {
+      const first = storage.createPlan(base);
+      const second = storage.createPlan(base);
+      expect(second.deduped).toBe(true);
+      expect(second.version.id).toBe(first.version.id);
+    });
+
+    it('overwrites version row on same series_key with different content', () => {
+      const first = storage.createPlan(base);
+      const second = storage.createPlan({ ...base, content: '# Updated plan' });
+      expect(second.deduped).toBe(false);
+      expect(second.series.id).toBe(first.series.id);
+      expect(second.version.id).not.toBe(first.version.id);
+      expect(second.version.content).toBe('# Updated plan');
+    });
+
+    it('creates separate series for different series_key', () => {
+      const a = storage.createPlan(base);
+      const b = storage.createPlan({ ...base, series_key: 'session2::/repo:main' });
+      expect(a.series.id).not.toBe(b.series.id);
+    });
+  });
+
+  describe('getLatestBySeriesKey', () => {
+    it('returns null for unknown key', () => {
+      expect(storage.getLatestBySeriesKey('nope')).toBeNull();
+    });
+
+    it('returns latest after creation', () => {
+      storage.createPlan(base);
+      const result = storage.getLatestBySeriesKey(base.series_key);
+      expect(result).not.toBeNull();
+      expect(result!.version.content).toBe(base.content);
+    });
+  });
+
+  describe('getLatestBySeriesId', () => {
+    it('returns null for unknown id', () => {
+      expect(storage.getLatestBySeriesId('unknown-id')).toBeNull();
+    });
+
+    it('returns plan by series id', () => {
+      const { series } = storage.createPlan(base);
+      const result = storage.getLatestBySeriesId(series.id);
+      expect(result!.series.id).toBe(series.id);
+    });
+  });
+
+  describe('savePlan', () => {
+    it('returns null when creator_token is wrong', () => {
+      const { series } = storage.createPlan(base);
+      const result = storage.savePlan(series.id, '# New', 'wrong-token');
+      expect(result).toBeNull();
+    });
+
+    it('overwrites content in place', () => {
+      const { series } = storage.createPlan(base);
+      const saved = storage.savePlan(series.id, '# Edited', series.creator_token);
+      expect(saved).not.toBeNull();
+      expect(saved!.version.content).toBe('# Edited');
+      expect(saved!.version.author_kind).toBe('human');
+    });
+
+    it('deduplicates on same content', () => {
+      const { series, version } = storage.createPlan(base);
+      const saved = storage.savePlan(series.id, base.content, series.creator_token);
+      expect(saved!.deduped).toBe(true);
+      expect(saved!.version.id).toBe(version.id);
+    });
+  });
+
+  describe('approvePlan', () => {
+    it('returns false with wrong token', () => {
+      const { series } = storage.createPlan(base);
+      expect(storage.approvePlan(series.id, 'bad')).toBe(false);
+    });
+
+    it('sets approved flag', () => {
+      const { series } = storage.createPlan(base);
+      expect(storage.approvePlan(series.id, series.creator_token)).toBe(true);
+      const result = storage.getLatestBySeriesId(series.id);
+      expect(result!.series.approved).toBe(true);
+    });
+  });
+
+  describe('delistPlan', () => {
+    it('returns false with wrong token', () => {
+      const { series } = storage.createPlan(base);
+      expect(storage.delistPlan(series.id, 'bad')).toBe(false);
+    });
+
+    it('sets delisted flag, making series invisible', () => {
+      const { series } = storage.createPlan(base);
+      expect(storage.delistPlan(series.id, series.creator_token)).toBe(true);
+      expect(storage.getLatestBySeriesId(series.id)).toBeNull();
+    });
+  });
+
+  describe('expirePlans', () => {
+    it('deletes plans with expires_at in the past', () => {
+      const { series } = storage.createPlan(base);
+      // manually backdate expires_at
+      storage._setExpiresAt(series.id, new Date(Date.now() - 3600 * 1000));
+
+      const deleted = storage.expirePlans();
+      expect(deleted).toBe(1);
+      expect(storage.getLatestBySeriesId(series.id)).toBeNull();
+    });
+
+    it('leaves non-expired plans alone', () => {
+      storage.createPlan(base);
+      const deleted = storage.expirePlans();
+      expect(deleted).toBe(0);
+    });
+  });
+
+  describe('comments', () => {
+    it('adds and retrieves comments', () => {
+      const { series } = storage.createPlan(base);
+      storage.addComment(series.id, 'Looks good', 'ip1');
+      storage.addComment(series.id, 'Check step 3', 'ip2');
+      const comments = storage.getComments(series.id);
+      expect(comments).toHaveLength(2);
+      expect(comments[0].body).toBe('Looks good');
+    });
+
+    it('deletes comment with valid creator_token', () => {
+      const { series } = storage.createPlan(base);
+      const comment = storage.addComment(series.id, 'Delete me', 'ip1');
+      const ok = storage.deleteComment(comment.id, series.id, series.creator_token);
+      expect(ok).toBe(true);
+      expect(storage.getComments(series.id)).toHaveLength(0);
+    });
+
+    it('refuses to delete comment with wrong token', () => {
+      const { series } = storage.createPlan(base);
+      const comment = storage.addComment(series.id, 'Keep me', 'ip1');
+      const ok = storage.deleteComment(comment.id, series.id, 'bad-token');
+      expect(ok).toBe(false);
+      expect(storage.getComments(series.id)).toHaveLength(1);
+    });
+
+    it('cascades delete comments when plan is expired', () => {
+      const { series } = storage.createPlan(base);
+      storage.addComment(series.id, 'Will be gone', 'ip1');
+      storage._setExpiresAt(series.id, new Date(Date.now() - 3600 * 1000));
+      storage.expirePlans();
+      // No error thrown — cascade handled by DB
+      expect(storage.getComments(series.id)).toHaveLength(0);
+    });
+  });
+});

@@ -1,0 +1,42 @@
+node_modules/
+dist/
+.turbo/
+*.tsbuildinfo
+
+# SQLite
+*.db
+*.sqlite
+*.sqlite3
+data/
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# pnpm
+.pnpm-store/
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Build artifacts
+packages/client/dist/
+packages/server/dist/
+packages/hooks/dist/

@@ -1,0 +1,12 @@
+{
+  "name": "@baz-scm/pact-hooks",
+  "version": "0.0.1",
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.8.0"
+  }
+}
