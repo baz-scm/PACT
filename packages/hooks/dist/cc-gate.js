@@ -28,14 +28,12 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 ));
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
-// src/cc-capture.ts
-var cc_capture_exports = {};
-__export(cc_capture_exports, {
-  readState: () => readState,
-  runCapture: () => runCapture
+// src/cc-gate.ts
+var cc_gate_exports = {};
+__export(cc_gate_exports, {
+  runGate: () => runGate
 });
-module.exports = __toCommonJS(cc_capture_exports);
-var fs2 = __toESM(require("fs"));
+module.exports = __toCommonJS(cc_gate_exports);
 
 // src/config.ts
 var fs = __toESM(require("fs"));
@@ -71,14 +69,6 @@ function loadConfig(cwd, homeDir) {
   }
   return config;
 }
-function redactContent(content, patterns) {
-  let result = content;
-  for (const pattern of patterns) {
-    const regex = new RegExp(pattern, "g");
-    result = result.replace(regex, "[REDACTED]");
-  }
-  return result;
-}
 function getCCSeriesKey(env) {
   const sessionId = env["CLAUDE_SESSION_ID"] ?? "";
   const pwd = env["PWD"] ?? "";
@@ -98,63 +88,52 @@ function readState(series_key, homeDir) {
     return null;
   }
 }
-function writeState(series_key, state, homeDir) {
-  const filePath = stateFilePath(series_key, homeDir);
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  fs.writeFileSync(filePath, JSON.stringify(state, null, 2), "utf8");
+
+// src/gate-core.ts
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+async function pollUntilApproved(series_id, config, pollIntervalMs = 3e3) {
+  if (!config.enabled) return { approved: false, reason: "disabled" };
+  const deadline = Date.now() + config.gate_timeout_seconds * 1e3;
+  while (true) {
+    const response = await fetch(`${config.server}/api/plans/${series_id}`);
+    if (response.ok) {
+      const data = await response.json();
+      if (data.approved) return { approved: true, content: data.content };
+    }
+    if (Date.now() >= deadline) return { approved: false, reason: "timeout" };
+    await sleep(pollIntervalMs);
+  }
 }
 
-// src/cc-capture.ts
-function isPlanFile(filePath, homeDir) {
-  const home = homeDir.replace(/\/$/, "");
-  return /[/\\]\.claude(?:-[^/\\]*)?[/\\]plans[/\\][^/\\]+\.md$/.test(filePath) && filePath.startsWith(home);
-}
-async function runCapture(input, env, cwd, homeDir) {
-  const home = homeDir ?? process.env.HOME ?? "";
+// src/cc-gate.ts
+async function runGate(input, env, cwd, homeDir, pollIntervalMs, gateSecs) {
   let envelope;
   try {
     envelope = JSON.parse(input);
   } catch {
     return;
   }
-  if (envelope.tool_name !== "Write" && envelope.tool_name !== "Edit") return;
-  const filePath = envelope.tool_input?.file_path;
-  if (!filePath || !isPlanFile(filePath, home)) return;
-  const config = loadConfig(cwd, home);
-  if (!config.enabled) return;
-  let content;
-  try {
-    content = fs2.readFileSync(filePath, "utf8");
-  } catch {
-    return;
-  }
-  const redacted = redactContent(content, config.redact);
+  if (envelope.tool_name !== "ExitPlanMode") return;
   const series_key = getCCSeriesKey(env);
-  const response = await fetch(`${config.server}/api/plans`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      series_key,
-      content: redacted,
-      author_kind: "agent",
-      source_tool: "claude-code"
-    })
-  });
-  if (!response.ok) {
-    process.stderr.write(`[PACT] Failed to capture plan: ${response.status}
-`);
-    return;
+  const state = readState(series_key, homeDir);
+  if (!state) return;
+  const config = loadConfig(cwd, homeDir);
+  if (gateSecs !== void 0) config.gate_timeout_seconds = gateSecs;
+  const result = await pollUntilApproved(state.series_id, config, pollIntervalMs);
+  if (result.approved) {
+    process.stdout.write(JSON.stringify({
+      hookSpecificOutput: {
+        hookEventName: "PostToolUse",
+        additionalContext: `[PACT] Plan approved by reviewer. Proceed with this reviewed plan:
+
+${result.content}`
+      }
+    }));
+  } else if (result.reason === "timeout") {
+    process.stderr.write("[PACT] Review timed out, proceeding.\n");
   }
-  const data = await response.json();
-  const share_url = `${config.server}/p/${data.share_token}`;
-  writeState(series_key, {
-    series_id: data.series_id,
-    creator_token: data.creator_token,
-    share_url
-  }, homeDir);
-  process.stderr.write(`
-Plan captured: ${share_url}#token=${data.creator_token}
-`);
 }
 if (require.main === module) {
   async function main() {
@@ -166,13 +145,12 @@ if (require.main === module) {
       });
       process.stdin.on("end", () => resolve(data));
     });
-    await runCapture(input, process.env, process.cwd());
+    await runGate(input, process.env, process.cwd());
     process.exit(0);
   }
   main().catch(() => process.exit(0));
 }
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
-  readState,
-  runCapture
+  runGate
 });

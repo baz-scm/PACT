@@ -2,11 +2,20 @@
   "hooks": {
     "PostToolUse": [
       {
-        "matcher": "ExitPlanMode",
+        "matcher": "Write|Edit",
         "hooks": [
           {
             "type": "command",
             "command": "node \"${CLAUDE_PLUGIN_ROOT}/dist/cc-capture.js\""
+          }
+        ]
+      },
+      {
+        "matcher": "ExitPlanMode",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/dist/cc-gate.js\""
           }
         ]
       }

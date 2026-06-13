@@ -1,12 +1,13 @@
-#!/usr/bin/env -S npx tsx
+#!/usr/bin/env node
+import * as fs from 'fs';
 import { loadConfig, redactContent, getCCSeriesKey, writeState } from './config';
 
 export { readState } from './config';
 
-interface ExitPlanModeEnvelope {
+interface ToolUseEnvelope {
   tool_name: string;
   tool_input: {
-    plan: string;
+    file_path?: string;
   };
 }
 
@@ -16,26 +17,43 @@ interface PlanResponse {
   share_token: string;
 }
 
+function isPlanFile(filePath: string, homeDir: string): boolean {
+  const home = homeDir.replace(/\/$/, '');
+  return /[/\\]\.claude(?:-[^/\\]*)?[/\\]plans[/\\][^/\\]+\.md$/.test(filePath) &&
+    filePath.startsWith(home);
+}
+
 export async function runCapture(
   input: string,
   env: Record<string, string | undefined>,
   cwd?: string,
   homeDir?: string
 ): Promise<void> {
-  let envelope: ExitPlanModeEnvelope;
+  const home = homeDir ?? process.env.HOME ?? '';
+
+  let envelope: ToolUseEnvelope;
   try {
-    envelope = JSON.parse(input) as ExitPlanModeEnvelope;
+    envelope = JSON.parse(input) as ToolUseEnvelope;
   } catch {
     return;
   }
 
-  if (envelope.tool_name !== 'ExitPlanMode') return;
+  if (envelope.tool_name !== 'Write' && envelope.tool_name !== 'Edit') return;
 
-  const config = loadConfig(cwd, homeDir);
+  const filePath = envelope.tool_input?.file_path;
+  if (!filePath || !isPlanFile(filePath, home)) return;
+
+  const config = loadConfig(cwd, home);
   if (!config.enabled) return;
 
-  const plan = envelope.tool_input?.plan ?? '';
-  const redacted = redactContent(plan, config.redact);
+  let content: string;
+  try {
+    content = fs.readFileSync(filePath, 'utf8');
+  } catch {
+    return;
+  }
+
+  const redacted = redactContent(content, config.redact);
   const series_key = getCCSeriesKey(env);
 
   const response = await fetch(`${config.server}/api/plans`, {

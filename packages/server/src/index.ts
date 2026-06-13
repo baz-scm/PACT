@@ -1,10 +1,12 @@
 import path from 'path';
+import fs from 'node:fs';
 import { createApp } from './app';
 import { SqliteStorage } from './storage/sqlite';
 import { loadConfig } from './config';
 
 const config = loadConfig();
 
+fs.mkdirSync(config.dataDir, { recursive: true });
 const dbPath = path.join(config.dataDir, 'pact.db');
 const storage = new SqliteStorage(dbPath);
 const app = createApp(storage, config.plansTtlHours);
