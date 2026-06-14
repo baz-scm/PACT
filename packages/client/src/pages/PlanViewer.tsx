@@ -1,17 +1,43 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
+import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
-import { api, type PlanResponse } from '../api';
-import { ExpiryBanner } from '../components/ExpiryBanner';
+import { api, type PlanResponse, type Comment } from '../api';
 import { MermaidBlock } from '../components/MermaidBlock';
-import { Comments } from '../components/Comments';
+import { Comments, CommentRow } from '../components/Comments';
+import { SelectionCommentButton } from '../components/SelectionCommentButton';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { Footer } from '../components/Footer';
 
 function getCreatorToken(series_id: string): string | null {
   return localStorage.getItem(`pact_token_${series_id}`);
+}
+
+function markQuote(children: React.ReactNode, quote: string): React.ReactNode {
+  return React.Children.map(children, (child) => {
+    if (typeof child === 'string') {
+      const idx = child.toLowerCase().indexOf(quote.toLowerCase());
+      if (idx === -1) return child;
+      return (
+        <>
+          {child.slice(0, idx)}
+          <mark style={{ backgroundColor: 'var(--highlight-bg)', borderRadius: '2px', padding: '0 1px' }}>
+            {child.slice(idx, idx + quote.length)}
+          </mark>
+          {child.slice(idx + quote.length)}
+        </>
+      );
+    }
+    if (React.isValidElement(child)) {
+      const el = child as React.ReactElement<{ children?: React.ReactNode }>;
+      if (el.props.children) {
+        return React.cloneElement(el, {}, markQuote(el.props.children, quote));
+      }
+    }
+    return child;
+  });
 }
 
 function extractTitle(content: string): string {
@@ -28,7 +54,12 @@ export function PlanViewer() {
   const [draft, setDraft] = useState('');
   const [saving, setSaving] = useState(false);
   const [approving, setApproving] = useState(false);
+  const [rejecting, setRejecting] = useState(false);
   const [delisting, setDelisting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [highlightAnchor, setHighlightAnchor] = useState<string | null>(null);
+  const proseRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!share_token) return;
@@ -41,11 +72,90 @@ export function PlanViewer() {
           window.history.replaceState(null, '', window.location.pathname);
         }
         setPlan(p);
+        return api.getComments(p.series_id);
       })
+      .then(setComments)
       .catch((e: { status?: number }) => {
         setError(e.status === 404 ? 'This plan has expired or been removed.' : 'Failed to load plan.');
       });
   }, [share_token]);
+
+  const anchoredComments = useMemo(() => {
+    const map: Record<string, Comment[]> = {};
+    for (const c of comments) {
+      if (c.anchor) {
+        const blockAnchor = c.anchor.split('#')[0];
+        (map[blockAnchor] ??= []).push(c);
+      }
+    }
+    return map;
+  }, [comments]);
+
+  // markdownComponents must be defined before early returns (rules of hooks)
+  const creator_token_memo = plan ? getCreatorToken(plan.series_id) : null;
+  const markdownComponents = useMemo(() => {
+    type MdNode = { position?: { start: { line: number } } };
+
+    function makeBlock(Tag: React.ElementType) {
+      return function Block({ node, children, ...props }: React.HTMLAttributes<HTMLElement> & { node?: MdNode }) {
+        // Use source line number as anchor — stable across re-renders, immune to StrictMode double-invocation
+        const anchor = node?.position ? `p-${node.position.start.line}` : null;
+        const thread = anchor ? (anchoredComments[anchor] ?? []) : [];
+        const quote = (anchor && highlightAnchor?.startsWith(anchor + '#'))
+          ? highlightAnchor.slice(anchor.length + 1)
+          : null;
+        const blockHighlight = anchor !== null && highlightAnchor === anchor;
+        return (
+          <>
+            <Tag
+              data-pact-anchor={anchor ?? undefined}
+              style={blockHighlight ? { backgroundColor: 'var(--highlight-bg)', borderRadius: '3px' } : undefined}
+              {...props}
+            >
+              {quote ? markQuote(children, quote) : children}
+            </Tag>
+            {thread.length > 0 && (
+              <div className="space-y-1.5 my-2 pl-3" style={{ borderLeft: '2px solid var(--action-primary)' }}>
+                {thread.map((c) => (
+                  <CommentRow
+                    key={c.id}
+                    comment={c}
+                    series_id={plan?.series_id ?? ''}
+                    creator_token={creator_token_memo}
+                    onDelete={deleteComment}
+                    onUpdate={updateComment}
+                    onResolve={resolveComment}
+                    onHighlight={setHighlightAnchor}
+                  />
+                ))}
+              </div>
+            )}
+          </>
+        );
+      };
+    }
+
+    return {
+      p: makeBlock('p'),
+      h1: makeBlock('h1'),
+      h2: makeBlock('h2'),
+      h3: makeBlock('h3'),
+      h4: makeBlock('h4'),
+      h5: makeBlock('h5'),
+      h6: makeBlock('h6'),
+      li: makeBlock('li'),
+      pre: makeBlock('pre'),
+      blockquote: makeBlock('blockquote'),
+      code({ className, children, ...props }: React.HTMLAttributes<HTMLElement>) {
+        const lang = /language-(\w+)/.exec(className ?? '')?.[1];
+        if (lang === 'mermaid') {
+          return <MermaidBlock code={String(children).trim()} />;
+        }
+        return <code className={className} {...props}>{children}</code>;
+      },
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plan?.content, anchoredComments, creator_token_memo, highlightAnchor]);
 
   if (error) {
     return (
@@ -88,26 +198,65 @@ export function PlanViewer() {
   }
 
   async function approve() {
-    if (!creator_token || !plan) return;
+    if (!plan) return;
     setApproving(true);
     try {
-      await api.approvePlan(plan.series_id, creator_token);
-      setPlan({ ...plan, approved: true });
+      await api.approvePlan(plan.series_id, creator_token ?? '');
+      setPlan({ ...plan, approved: true, rejected: false });
     } finally {
       setApproving(false);
     }
   }
 
+  async function reject() {
+    if (!plan) return;
+    setRejecting(true);
+    try {
+      await api.rejectPlan(plan.series_id, creator_token ?? '');
+      setPlan({ ...plan, rejected: true, approved: false });
+    } finally {
+      setRejecting(false);
+    }
+  }
+
+  function resolveComment(comment_id: string) {
+    if (!plan) return;
+    api.resolveComment(plan.series_id, comment_id, creator_token ?? '').catch(() => null);
+    setComments((prev) => prev.map((c) => c.id === comment_id ? { ...c, resolved: true } : c));
+  }
+
   async function delist() {
-    if (!creator_token || !plan) return;
-    if (!confirm('Delete this plan? This cannot be undone.')) return;
+    if (!plan) return;
     setDelisting(true);
     try {
-      await api.delistPlan(plan.series_id, creator_token);
+      await api.delistPlan(plan.series_id, creator_token ?? '');
       navigate('/');
     } finally {
       setDelisting(false);
+      setConfirmDelete(false);
     }
+  }
+
+  async function addComment(body: string, anchor?: string) {
+    if (!plan) return;
+    const c = await api.addComment(plan.series_id, body, anchor);
+    if (c.commenter_token) {
+      localStorage.setItem(`pact_comment_token_${c.id}`, c.commenter_token);
+    }
+    setComments((prev) => [...prev, c]);
+  }
+
+  function updateComment(comment_id: string, body: string) {
+    setComments((prev) => prev.map((c) => c.id === comment_id ? { ...c, body } : c));
+  }
+
+  function deleteComment(comment_id: string) {
+    if (!plan) return;
+    const commenterToken = localStorage.getItem(`pact_comment_token_${comment_id}`);
+    const token = commenterToken || creator_token;
+    if (!token) return;
+    api.deleteComment(plan.series_id, comment_id, token).catch(() => null);
+    setComments((prev) => prev.filter((c) => c.id !== comment_id));
   }
 
   const title = extractTitle(plan.content);
@@ -128,14 +277,20 @@ export function PlanViewer() {
         >
           ← Back
         </button>
-
         <div className="flex items-center gap-2">
           {plan.approved && (
-            <span
-              className="text-xs font-medium px-2 py-0.5 rounded-full"
-              style={{ backgroundColor: 'var(--success-bg)', color: 'var(--success-fg)' }}
-            >
+            <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ backgroundColor: 'var(--success-bg)', color: 'var(--success-fg)' }}>
               Approved ✓
+            </span>
+          )}
+          {plan.rejected && (
+            <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ backgroundColor: 'var(--error-bg)', color: 'var(--error-fg)' }}>
+              Rejected ✗
+            </span>
+          )}
+          {!plan.approved && !plan.rejected && (
+            <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ backgroundColor: 'var(--warn-bg)', color: 'var(--warn-fg)' }}>
+              Pending
             </span>
           )}
           <ThemeToggle />
@@ -143,7 +298,6 @@ export function PlanViewer() {
       </header>
 
       <main className="max-w-3xl mx-auto px-4 py-8">
-        {/* Plan title */}
         {title && (
           <h1 className="text-xl font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>
             {title}
@@ -153,46 +307,8 @@ export function PlanViewer() {
           {new Date(plan.created_at).toLocaleString()} · {plan.source_tool}
         </p>
 
-        {/* Action bar */}
-        {isCreator && !editing && (
-          <div className="flex items-center gap-2 mb-4 flex-wrap">
-            {!plan.approved && (
-              <button
-                onClick={approve}
-                disabled={approving}
-                className="px-4 py-1.5 text-sm font-medium rounded-md text-white transition-colors disabled:opacity-50"
-                style={{ backgroundColor: 'var(--action-primary)' }}
-                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--action-primary-hover)')}
-                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'var(--action-primary)')}
-              >
-                {approving ? 'Approving…' : '✓ Approve'}
-              </button>
-            )}
-            <button
-              onClick={startEdit}
-              className="px-3 py-1.5 text-sm rounded-md border transition-colors"
-              style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)', backgroundColor: 'transparent' }}
-              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--bg-section)')}
-              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
-            >
-              Edit
-            </button>
-            <button
-              onClick={delist}
-              disabled={delisting}
-              className="px-3 py-1.5 text-sm rounded-md border transition-colors disabled:opacity-50"
-              style={{ borderColor: 'var(--error-fg)', color: 'var(--error-fg)', backgroundColor: 'transparent' }}
-              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--error-bg)')}
-              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
-            >
-              Delete
-            </button>
-          </div>
-        )}
 
-        <ExpiryBanner expiresAt={plan.expires_at} />
-
-        <div className="mt-4">
+<div className="mt-4">
           {editing ? (
             <div>
               <textarea
@@ -225,29 +341,114 @@ export function PlanViewer() {
               </div>
             </div>
           ) : (
-            <div className="prose prose-gray dark:prose-invert max-w-none">
-              <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
-                rehypePlugins={[rehypeHighlight]}
-                components={{
-                  code({ className, children, ...props }) {
-                    const lang = /language-(\w+)/.exec(className ?? '')?.[1];
-                    if (lang === 'mermaid') {
-                      return <MermaidBlock code={String(children).trim()} />;
-                    }
-                    return <code className={className} {...props}>{children}</code>;
-                  },
-                }}
-              >
-                {plan.content}
-              </ReactMarkdown>
+            <div className="relative">
+              <div ref={proseRef} className="prose prose-gray dark:prose-invert max-w-none">
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  rehypePlugins={[rehypeHighlight]}
+                  components={markdownComponents}
+                >
+                  {plan.content}
+                </ReactMarkdown>
+              </div>
+              <SelectionCommentButton
+                containerRef={proseRef}
+                onSubmit={(body, anchor) => addComment(body, anchor ?? undefined)}
+              />
             </div>
           )}
         </div>
 
-        <Comments series_id={plan.series_id} creator_token={creator_token} />
+        <Comments
+          series_id={plan.series_id}
+          creator_token={creator_token}
+          comments={comments}
+          onAdd={addComment}
+          onDelete={deleteComment}
+          onUpdate={updateComment}
+          onResolve={resolveComment}
+          onHighlightAnchor={setHighlightAnchor}
+        />
         <Footer />
       </main>
+
+      {/* Floating action bar */}
+      {!editing && (
+        <div
+          className="fixed bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-2 px-4 py-2.5 rounded-xl shadow-lg border z-20"
+          style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border)' }}
+        >
+          {!plan.approved && !plan.rejected && (
+            <>
+              <button
+                onClick={approve}
+                disabled={approving}
+                className="px-4 py-1.5 text-sm font-medium rounded-lg text-white transition-colors disabled:opacity-50"
+                style={{ backgroundColor: 'var(--success-fg)' }}
+              >
+                {approving ? 'Approving…' : '✓ Approve'}
+              </button>
+              <button
+                onClick={reject}
+                disabled={rejecting}
+                className="px-4 py-1.5 text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+                style={{ backgroundColor: 'var(--error-bg)', color: 'var(--error-fg)' }}
+              >
+                {rejecting ? 'Rejecting…' : '✗ Reject'}
+              </button>
+              <div className="w-px h-5 mx-1" style={{ backgroundColor: 'var(--border)' }} />
+            </>
+          )}
+          {(plan.approved || plan.rejected) && (
+            <>
+              <button
+                onClick={plan.approved ? reject : approve}
+                disabled={approving || rejecting}
+                className="px-3 py-1.5 text-xs rounded-lg border transition-colors disabled:opacity-50"
+                style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)', backgroundColor: 'transparent' }}
+              >
+                {plan.approved ? '✗ Reject' : '✓ Approve'}
+              </button>
+              <div className="w-px h-5 mx-1" style={{ backgroundColor: 'var(--border)' }} />
+            </>
+          )}
+          <button
+            onClick={startEdit}
+            className="px-3 py-1.5 text-sm rounded-lg border transition-colors"
+            style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)', backgroundColor: 'transparent' }}
+          >
+            Edit
+          </button>
+          {confirmDelete ? (
+            <>
+              <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>Delete?</span>
+              <button
+                onClick={delist}
+                disabled={delisting}
+                className="px-3 py-1.5 text-xs font-medium rounded-lg transition-colors disabled:opacity-50"
+                style={{ backgroundColor: 'var(--error-bg)', color: 'var(--error-fg)' }}
+              >
+                {delisting ? '…' : 'Yes, delete'}
+              </button>
+              <button
+                onClick={() => setConfirmDelete(false)}
+                className="px-2 py-1.5 text-xs rounded-lg transition-colors"
+                style={{ color: 'var(--text-tertiary)' }}
+              >
+                Cancel
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={() => setConfirmDelete(true)}
+              className="px-3 py-1.5 text-sm rounded-lg transition-colors"
+              style={{ color: 'var(--error-fg)', backgroundColor: 'transparent' }}
+            >
+              Delete
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

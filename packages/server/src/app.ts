@@ -19,7 +19,7 @@ export function createApp(storage: IStorage, plansTtlHours = 24): Express {
   const clientDist = path.resolve(__dirname, '../../../client/dist');
   if (fs.existsSync(clientDist)) {
     app.use(express.static(clientDist));
-    app.get('/p/*', (_req, res) => res.sendFile(path.join(clientDist, 'index.html')));
+    app.get('/viewer/*', (_req, res) => res.sendFile(path.join(clientDist, 'index.html')));
     app.get('/', (_req, res) => res.sendFile(path.join(clientDist, 'index.html')));
   }
 

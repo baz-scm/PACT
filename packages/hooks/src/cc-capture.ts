@@ -1,5 +1,17 @@
 #!/usr/bin/env node
-import { loadConfig, redactContent, getCCSeriesKey, writeState } from './config';
+import crypto from 'crypto';
+import { loadConfig, redactContent, getCCSeriesKey, writeState, readState, planSimilarity, SIMILARITY_THRESHOLD } from './config';
+
+async function fetchLastContent(server: string, series_id: string): Promise<string | null> {
+  try {
+    const res = await fetch(`${server}/api/plans/${series_id}`);
+    if (!res.ok) return null;
+    const data = await res.json() as { content?: string };
+    return data.content ?? null;
+  } catch {
+    return null;
+  }
+}
 
 export { readState } from './config';
 
@@ -48,13 +60,29 @@ export async function runCapture(
 
   const redacted = redactContent(plan, config.redact);
   const series_key = getCCSeriesKey(env);
+  const existingState = readState(series_key, homeDir);
+
+  let isSameFeature = true;
+  if (existingState) {
+    const lastContent = await fetchLastContent(config.server, existingState.series_id);
+    if (lastContent) {
+      isSameFeature = planSimilarity(redacted, lastContent) >= SIMILARITY_THRESHOLD;
+    }
+  }
+
+  // Use the stored series_key for same-feature updates so we always target the correct
+  // series even after a prior "new feature" split created a server-side random key.
+  // For new features, generate a fresh key here so it can be stored and reused later.
+  const postKey = isSameFeature
+    ? (existingState?.series_key ?? series_key)
+    : crypto.randomUUID();
 
   try {
     const response = await fetch(`${config.server}/api/plans`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        series_key,
+        series_key: postKey,
         content: redacted,
         author_kind: 'agent',
         source_tool: 'claude-code',
@@ -63,9 +91,10 @@ export async function runCapture(
 
     if (response.ok) {
       const data = (await response.json()) as PlanResponse;
-      const share_url = `${config.server}/p/${data.share_token}`;
+      const share_url = `${config.server}/viewer/${data.share_token}`;
       writeState(series_key, {
         series_id: data.series_id,
+        series_key: postKey,
         creator_token: data.creator_token,
         share_url,
       }, homeDir);

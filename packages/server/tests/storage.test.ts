@@ -33,13 +33,12 @@ describe('SqliteStorage', () => {
       expect(result.deduped).toBe(false);
     });
 
-    it('sets expires_at 24h from now by default', () => {
+    it('sets expires_at far in the future when ttl_hours is 0 (no TTL)', () => {
       const before = Date.now();
       const result = storage.createPlan(base);
-      const after = Date.now();
       const exp = result.series.expires_at.getTime();
-      expect(exp).toBeGreaterThanOrEqual(before + 24 * 3600 * 1000 - 1000);
-      expect(exp).toBeLessThanOrEqual(after + 24 * 3600 * 1000 + 1000);
+      // default is 100 years when no TTL provided
+      expect(exp).toBeGreaterThan(before + 365 * 24 * 3600 * 1000);
     });
 
     it('deduplicates on same content hash', () => {

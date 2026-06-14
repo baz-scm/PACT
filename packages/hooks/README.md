@@ -58,6 +58,15 @@ echo '{"server":"https://plan.baz.co"}' > ~/.pact/config.json
 | `redact` | `[]` | Regex patterns — matched text replaced with `[REDACTED]` before upload |
 | `gate_timeout_seconds` | `300` | How long the gate hook waits for approval |
 
+## Smart series detection
+
+Each plan belongs to a *series* — a thread of related revisions for the same feature. When you exit plan mode, the hook compares the new plan against the previous one using word-level Jaccard similarity (the same heuristic git uses for rename detection).
+
+- **Similar plan (≥ 30% word overlap)** → update the existing series. Reviewers see it as a revision of the same feature.
+- **Dramatically different plan (< 30% overlap)** → create a fresh series. The old plan is preserved; the new one gets its own share URL.
+
+This means you can work on multiple features in the same session or on the same branch without them clobbering each other.
+
 ## Disable for a repo
 
 ```json

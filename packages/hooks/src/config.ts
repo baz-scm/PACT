@@ -70,17 +70,36 @@ function stateFilePath(series_key: string, homeDir?: string): string {
   return path.join(homeDir ?? os.homedir(), '.pact', 'state', `${hash}.json`);
 }
 
-export function readState(series_key: string, homeDir?: string): { series_id: string; creator_token: string; share_url: string } | null {
+export interface PactState {
+  series_id: string;
+  series_key: string;
+  creator_token: string;
+  share_url: string;
+}
+
+export function planSimilarity(a: string, b: string): number {
+  const words = (s: string) => new Set(s.toLowerCase().split(/\W+/).filter(w => w.length > 3));
+  const wa = words(a);
+  const wb = words(b);
+  let intersection = 0;
+  for (const w of wa) if (wb.has(w)) intersection++;
+  const union = new Set([...wa, ...wb]).size;
+  return union === 0 ? 1 : intersection / union;
+}
+
+export const SIMILARITY_THRESHOLD = 0.3;
+
+export function readState(series_key: string, homeDir?: string): PactState | null {
   const filePath = stateFilePath(series_key, homeDir);
   if (!fs.existsSync(filePath)) return null;
   try {
-    return JSON.parse(fs.readFileSync(filePath, 'utf8')) as { series_id: string; creator_token: string; share_url: string };
+    return JSON.parse(fs.readFileSync(filePath, 'utf8')) as PactState;
   } catch {
     return null;
   }
 }
 
-export function writeState(series_key: string, state: { series_id: string; creator_token: string; share_url: string }, homeDir?: string): void {
+export function writeState(series_key: string, state: PactState, homeDir?: string): void {
   const filePath = stateFilePath(series_key, homeDir);
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, JSON.stringify(state, null, 2), 'utf8');

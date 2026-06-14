@@ -35,6 +35,7 @@ __export(cc_capture_exports, {
   runCapture: () => runCapture
 });
 module.exports = __toCommonJS(cc_capture_exports);
+var import_crypto = __toESM(require("crypto"));
 
 // src/config.ts
 var fs = __toESM(require("fs"));
@@ -88,6 +89,16 @@ function stateFilePath(series_key, homeDir) {
   const hash = crypto.createHash("sha256").update(series_key).digest("hex");
   return path.join(homeDir ?? os.homedir(), ".pact", "state", `${hash}.json`);
 }
+function planSimilarity(a, b) {
+  const words = (s) => new Set(s.toLowerCase().split(/\W+/).filter((w) => w.length > 3));
+  const wa = words(a);
+  const wb = words(b);
+  let intersection = 0;
+  for (const w of wa) if (wb.has(w)) intersection++;
+  const union = (/* @__PURE__ */ new Set([...wa, ...wb])).size;
+  return union === 0 ? 1 : intersection / union;
+}
+var SIMILARITY_THRESHOLD = 0.3;
 function readState(series_key, homeDir) {
   const filePath = stateFilePath(series_key, homeDir);
   if (!fs.existsSync(filePath)) return null;
@@ -104,6 +115,16 @@ function writeState(series_key, state, homeDir) {
 }
 
 // src/cc-capture.ts
+async function fetchLastContent(server, series_id) {
+  try {
+    const res = await fetch(`${server}/api/plans/${series_id}`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.content ?? null;
+  } catch {
+    return null;
+  }
+}
 function allow() {
   process.stdout.write(JSON.stringify({
     hookSpecificOutput: {
@@ -129,12 +150,21 @@ async function runCapture(input, env, cwd, homeDir) {
   }
   const redacted = redactContent(plan, config.redact);
   const series_key = getCCSeriesKey(env);
+  const existingState = readState(series_key, homeDir);
+  let isSameFeature = true;
+  if (existingState) {
+    const lastContent = await fetchLastContent(config.server, existingState.series_id);
+    if (lastContent) {
+      isSameFeature = planSimilarity(redacted, lastContent) >= SIMILARITY_THRESHOLD;
+    }
+  }
+  const postKey = isSameFeature ? existingState?.series_key ?? series_key : import_crypto.default.randomUUID();
   try {
     const response = await fetch(`${config.server}/api/plans`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        series_key,
+        series_key: postKey,
         content: redacted,
         author_kind: "agent",
         source_tool: "claude-code"
@@ -142,9 +172,10 @@ async function runCapture(input, env, cwd, homeDir) {
     });
     if (response.ok) {
       const data = await response.json();
-      const share_url = `${config.server}/p/${data.share_token}`;
+      const share_url = `${config.server}/viewer/${data.share_token}`;
       writeState(series_key, {
         series_id: data.series_id,
+        series_key: postKey,
         creator_token: data.creator_token,
         share_url
       }, homeDir);

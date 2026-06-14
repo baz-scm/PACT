@@ -48,6 +48,15 @@ describe('pollUntilApproved', () => {
     expect(mockFetch).toHaveBeenCalledTimes(2);
   });
 
+  it('continues polling when fetch throws (server unreachable)', async () => {
+    mockFetch
+      .mockRejectedValueOnce(new Error('ECONNREFUSED'))
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ approved: true, content: '# Plan' }) });
+    const result = await pollUntilApproved('series-1', baseConfig, 50);
+    expect(result).toEqual({ approved: true, content: '# Plan' });
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
   it('returns timeout when deadline passes', async () => {
     mockFetch.mockResolvedValue({
       ok: true,

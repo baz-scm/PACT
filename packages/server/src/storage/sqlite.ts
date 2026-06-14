@@ -19,7 +19,8 @@ function sha256(content: string) {
   return crypto.createHash('sha256').update(content).digest('hex');
 }
 
-function expiresAt(ttl_hours = 24) {
+function expiresAt(ttl_hours = 0) {
+  if (ttl_hours === 0) return new Date(Date.now() + 100 * 365 * 24 * 3600 * 1000);
   return new Date(Date.now() + ttl_hours * 3600 * 1000);
 }
 
@@ -59,7 +60,7 @@ export class SqliteStorage implements IStorage {
   }
 
   createPlan(params: CreatePlanParams): PlanResult {
-    const { series_key, content, author_kind, source_tool, ttl_hours } = params;
+    const { series_key = uuid(), content, author_kind, source_tool, ttl_hours } = params;
     const hash = sha256(content);
     const now = new Date();
 
@@ -204,20 +205,26 @@ export class SqliteStorage implements IStorage {
   }
 
   approvePlan(series_id: string, creator_token: string): boolean {
-    const result = this.db
-      .update(planSeries)
-      .set({ approved: true })
-      .where(and(eq(planSeries.id, series_id), eq(planSeries.creator_token, creator_token)))
-      .run();
+    const where = creator_token
+      ? and(eq(planSeries.id, series_id), eq(planSeries.creator_token, creator_token))
+      : eq(planSeries.id, series_id);
+    const result = this.db.update(planSeries).set({ approved: true, rejected: false }).where(where).run();
+    return (result.changes as number) > 0;
+  }
+
+  rejectPlan(series_id: string, creator_token: string): boolean {
+    const where = creator_token
+      ? and(eq(planSeries.id, series_id), eq(planSeries.creator_token, creator_token))
+      : eq(planSeries.id, series_id);
+    const result = this.db.update(planSeries).set({ rejected: true, approved: false }).where(where).run();
     return (result.changes as number) > 0;
   }
 
   delistPlan(series_id: string, creator_token: string): boolean {
-    const result = this.db
-      .update(planSeries)
-      .set({ delisted: true })
-      .where(and(eq(planSeries.id, series_id), eq(planSeries.creator_token, creator_token)))
-      .run();
+    const where = creator_token
+      ? and(eq(planSeries.id, series_id), eq(planSeries.creator_token, creator_token))
+      : eq(planSeries.id, series_id);
+    const result = this.db.update(planSeries).set({ delisted: true }).where(where).run();
     return (result.changes as number) > 0;
   }
 
@@ -229,11 +236,13 @@ export class SqliteStorage implements IStorage {
     return result.changes as number;
   }
 
-  addComment(series_id: string, body: string, ip_hash: string): Comment {
+  addComment(series_id: string, body: string, ip_hash: string, anchor?: string): Comment {
     const id = uuid();
+    const commenter_token = token();
     const now = new Date();
-    this.db.insert(comments).values({ id, series_id, body, ip_hash, created_at: now }).run();
-    return { id, series_id, body, ip_hash, created_at: now };
+    const anchorVal = anchor ?? null;
+    this.db.insert(comments).values({ id, series_id, body, ip_hash, anchor: anchorVal, commenter_token, created_at: now }).run();
+    return { id, series_id, body, ip_hash, anchor: anchorVal, commenter_token, resolved: false, created_at: now };
   }
 
   getComments(series_id: string): Comment[] {
@@ -242,7 +251,32 @@ export class SqliteStorage implements IStorage {
       .from(comments)
       .where(eq(comments.series_id, series_id))
       .orderBy(comments.created_at)
-      .all();
+      .all()
+      .map((c) => ({ ...c, anchor: c.anchor ?? null, commenter_token: null, resolved: c.resolved ?? false }));
+  }
+
+  updateComment(series_id: string, comment_id: string, body: string, tok: string): Comment | null {
+    const comment = this.db
+      .select()
+      .from(comments)
+      .where(and(eq(comments.id, comment_id), eq(comments.series_id, series_id)))
+      .get();
+    if (!comment) return null;
+
+    const series = this.db.select({ creator_token: planSeries.creator_token }).from(planSeries).where(eq(planSeries.id, series_id)).get();
+    const isCreator = series?.creator_token === tok;
+    const isAuthor = comment.commenter_token === tok;
+    if (!isCreator && !isAuthor) return null;
+
+    this.db.update(comments).set({ body }).where(eq(comments.id, comment_id)).run();
+    return { ...comment, body, anchor: comment.anchor ?? null, commenter_token: null, resolved: comment.resolved ?? false };
+  }
+
+  resolveComment(comment_id: string, series_id: string, creator_token: string): boolean {
+    const series = this.db.select({ creator_token: planSeries.creator_token }).from(planSeries).where(eq(planSeries.id, series_id)).get();
+    if (series?.creator_token !== creator_token) return false;
+    const result = this.db.update(comments).set({ resolved: true }).where(and(eq(comments.id, comment_id), eq(comments.series_id, series_id))).run();
+    return (result.changes as number) > 0;
   }
 
   /** Test helper — backdates expires_at via Drizzle (same connection). */
@@ -250,13 +284,19 @@ export class SqliteStorage implements IStorage {
     this.db.update(planSeries).set({ expires_at }).where(eq(planSeries.id, series_id)).run();
   }
 
-  deleteComment(comment_id: string, series_id: string, creator_token: string): boolean {
-    const series = this.db
-      .select({ id: planSeries.id })
-      .from(planSeries)
-      .where(and(eq(planSeries.id, series_id), eq(planSeries.creator_token, creator_token)))
+  deleteComment(comment_id: string, series_id: string, tok: string): boolean {
+    const comment = this.db
+      .select({ commenter_token: comments.commenter_token })
+      .from(comments)
+      .where(and(eq(comments.id, comment_id), eq(comments.series_id, series_id)))
       .get();
-    if (!series) return false;
+    if (!comment) return false;
+
+    const series = this.db.select({ creator_token: planSeries.creator_token }).from(planSeries).where(eq(planSeries.id, series_id)).get();
+    const isCreator = series?.creator_token === tok;
+    const isAuthor = comment.commenter_token === tok;
+    if (!isCreator && !isAuthor) return false;
+
     const result = this.db
       .delete(comments)
       .where(and(eq(comments.id, comment_id), eq(comments.series_id, series_id)))

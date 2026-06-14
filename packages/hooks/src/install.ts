@@ -42,13 +42,16 @@ function install(): void {
   const settings = readSettings();
   settings.hooks ??= {};
 
-  settings.hooks['PostToolUse'] ??= [];
-  if (!hasHook(settings.hooks['PostToolUse'], 'pact-capture')) {
-    settings.hooks['PostToolUse'].push({
+  settings.hooks['PreToolUse'] ??= [];
+  if (!hasHook(settings.hooks['PreToolUse'], 'pact-capture')) {
+    settings.hooks['PreToolUse'].push({
       matcher: 'ExitPlanMode',
-      hooks: [{ type: 'command', command: 'pact-capture' }],
+      hooks: [
+        { type: 'command', command: 'pact-capture' },
+        { type: 'command', command: 'pact-gate' },
+      ],
     });
-    console.log('✓ Registered pact-capture (PostToolUse/ExitPlanMode)');
+    console.log('✓ Registered pact-capture + pact-gate (PreToolUse/ExitPlanMode)');
   } else {
     console.log('  pact-capture already registered');
   }
@@ -79,10 +82,12 @@ function uninstall(): void {
     return;
   }
 
-  for (const event of ['PostToolUse', 'UserPromptSubmit']) {
+  for (const event of ['PreToolUse', 'PostToolUse', 'UserPromptSubmit']) {
     if (!settings.hooks[event]) continue;
     settings.hooks[event] = settings.hooks[event].filter(
-      (m) => !m.hooks.some((h) => h.command === 'pact-capture' || h.command === 'pact-nudge')
+      (m) => !m.hooks.some((h) =>
+        h.command === 'pact-capture' || h.command === 'pact-gate' || h.command === 'pact-nudge'
+      )
     );
     if (settings.hooks[event].length === 0) delete settings.hooks[event];
   }

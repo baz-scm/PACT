@@ -33,13 +33,13 @@ describe('cc-gate', () => {
   });
 
   it('ignores non-ExitPlanMode tool', async () => {
-    writeState('sess1:/project:main', { series_id: 'p1', creator_token: 'tok', share_url: 'http://x' }, tmpDir);
+    writeState('sess1:/project:main', { series_id: 'p1', series_key: 'sess1:/project:main', creator_token: 'tok', share_url: 'http://x' }, tmpDir);
     await runGate(JSON.stringify({ tool_name: 'Bash', tool_input: {} }), env, tmpDir, tmpDir);
     expect(mockFetch).not.toHaveBeenCalled();
   });
 
   it('writes approved plan to stdout', async () => {
-    writeState('sess1:/project:main', { series_id: 'p1', creator_token: 'tok', share_url: 'http://x' }, tmpDir);
+    writeState('sess1:/project:main', { series_id: 'p1', series_key: 'sess1:/project:main', creator_token: 'tok', share_url: 'http://x' }, tmpDir);
     mockFetch.mockResolvedValue({ ok: true, json: async () => ({ approved: true, content: '# Approved' }) });
     await runGate(envelope, env, tmpDir, tmpDir, 50);
     const written = (stdoutSpy.mock.calls.map((c) => c[0]) as string[]).join('');
@@ -48,7 +48,7 @@ describe('cc-gate', () => {
   });
 
   it('writes to stderr and no stdout on timeout', async () => {
-    writeState('sess1:/project:main', { series_id: 'p1', creator_token: 'tok', share_url: 'http://x' }, tmpDir);
+    writeState('sess1:/project:main', { series_id: 'p1', series_key: 'sess1:/project:main', creator_token: 'tok', share_url: 'http://x' }, tmpDir);
     mockFetch.mockResolvedValue({ ok: true, json: async () => ({ approved: false, content: '' }) });
     const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
     await runGate(envelope, env, tmpDir, tmpDir, 30, 0.05);

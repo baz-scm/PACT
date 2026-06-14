@@ -57,7 +57,7 @@ describe('Comments API', () => {
     expect(res.body).toHaveLength(2);
   });
 
-  it('DELETE removes comment with valid creator_token', async () => {
+  it('DELETE removes comment with valid creator token', async () => {
     const { app } = makeApp();
     const created = await request(app).post('/api/plans').send(planBody);
     const comment = await request(app)
@@ -65,13 +65,13 @@ describe('Comments API', () => {
       .send({ body: 'Remove me' });
     const res = await request(app)
       .delete(`/api/plans/${created.body.series_id}/comments/${comment.body.id}`)
-      .send({ creator_token: created.body.creator_token });
+      .send({ token: created.body.creator_token });
     expect(res.status).toBe(200);
     const list = await request(app).get(`/api/plans/${created.body.series_id}/comments`);
     expect(list.body).toHaveLength(0);
   });
 
-  it('DELETE returns 401 with wrong creator_token', async () => {
+  it('DELETE returns 401 with wrong token', async () => {
     const { app } = makeApp();
     const created = await request(app).post('/api/plans').send(planBody);
     const comment = await request(app)
@@ -79,6 +79,33 @@ describe('Comments API', () => {
       .send({ body: 'Keep me' });
     const res = await request(app)
       .delete(`/api/plans/${created.body.series_id}/comments/${comment.body.id}`)
+      .send({ token: 'bad' });
+    expect(res.status).toBe(401);
+  });
+
+  it('POST .../resolve marks comment as resolved', async () => {
+    const { app } = makeApp();
+    const created = await request(app).post('/api/plans').send(planBody);
+    const comment = await request(app)
+      .post(`/api/plans/${created.body.series_id}/comments`)
+      .send({ body: 'Resolve me' });
+    const res = await request(app)
+      .post(`/api/plans/${created.body.series_id}/comments/${comment.body.id}/resolve`)
+      .send({ creator_token: created.body.creator_token });
+    expect(res.status).toBe(200);
+    expect(res.body.resolved).toBe(true);
+    const list = await request(app).get(`/api/plans/${created.body.series_id}/comments`);
+    expect(list.body[0].resolved).toBe(true);
+  });
+
+  it('POST .../resolve returns 401 with wrong creator_token', async () => {
+    const { app } = makeApp();
+    const created = await request(app).post('/api/plans').send(planBody);
+    const comment = await request(app)
+      .post(`/api/plans/${created.body.series_id}/comments`)
+      .send({ body: 'Keep me' });
+    const res = await request(app)
+      .post(`/api/plans/${created.body.series_id}/comments/${comment.body.id}/resolve`)
       .send({ creator_token: 'bad' });
     expect(res.status).toBe(401);
   });

@@ -12,7 +12,7 @@ createRoot(document.getElementById('root')!).render(
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Landing />} />
-          <Route path="/p/:share_token" element={<PlanViewer />} />
+          <Route path="/viewer/:share_token" element={<PlanViewer />} />
         </Routes>
       </BrowserRouter>
     </ThemeProvider>

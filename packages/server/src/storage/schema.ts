@@ -8,6 +8,7 @@ export const planSeries = sqliteTable('plan_series', {
   delisted: integer('delisted', { mode: 'boolean' }).notNull().default(false),
   creator_token: text('creator_token').notNull(),
   approved: integer('approved', { mode: 'boolean' }).notNull().default(false),
+  rejected: integer('rejected', { mode: 'boolean' }).notNull().default(false),
   created_at: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
 });
 
@@ -30,5 +31,8 @@ export const comments = sqliteTable('comments', {
     .references(() => planSeries.id, { onDelete: 'cascade' }),
   body: text('body').notNull(),
   ip_hash: text('ip_hash').notNull(),
+  anchor: text('anchor'),
+  commenter_token: text('commenter_token'),
+  resolved: integer('resolved', { mode: 'boolean' }).notNull().default(false),
   created_at: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
 });

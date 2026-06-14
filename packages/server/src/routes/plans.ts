@@ -10,6 +10,7 @@ function planResponse(result: NonNullable<ReturnType<IStorage['getLatestBySeries
     source_tool: result.version.source_tool,
     expires_at: result.series.expires_at,
     approved: result.series.approved,
+    rejected: result.series.rejected,
     share_token: result.series.share_token,
     created_at: result.version.created_at,
   };
@@ -25,8 +26,8 @@ export function plansRouter(storage: IStorage, plansTtlHours: number): IRouter {
 
   router.post('/', (req, res) => {
     const { series_key, content, author_kind, source_tool } = req.body ?? {};
-    if (!series_key || !content || !author_kind || !source_tool) {
-      return res.status(400).json({ error: 'series_key, content, author_kind, source_tool required' });
+    if (!content || !author_kind || !source_tool) {
+      return res.status(400).json({ error: 'content, author_kind, source_tool required' });
     }
 
     const result = storage.createPlan({
@@ -42,7 +43,7 @@ export function plansRouter(storage: IStorage, plansTtlHours: number): IRouter {
       series_id: result.series.id,
       version_id: result.version.id,
       share_token: result.series.share_token,
-      url: `/p/${result.series.share_token}`,
+      url: `/viewer/${result.series.share_token}`,
       expires_at: result.series.expires_at,
       creator_token: result.series.creator_token,
     });
@@ -72,16 +73,21 @@ export function plansRouter(storage: IStorage, plansTtlHours: number): IRouter {
   });
 
   router.post('/:series_id/approve', (req, res) => {
-    const { creator_token } = req.body ?? {};
-    if (!creator_token) return res.status(400).json({ error: 'creator_token required' });
+    const { creator_token = '' } = req.body ?? {};
     const ok = storage.approvePlan(req.params.series_id, creator_token);
     if (!ok) return res.status(401).json({ error: 'Unauthorized' });
     return res.json({ approved: true });
   });
 
+  router.post('/:series_id/reject', (req, res) => {
+    const { creator_token = '' } = req.body ?? {};
+    const ok = storage.rejectPlan(req.params.series_id, creator_token);
+    if (!ok) return res.status(401).json({ error: 'Unauthorized' });
+    return res.json({ rejected: true });
+  });
+
   router.delete('/:series_id', (req, res) => {
-    const { creator_token } = req.body ?? {};
-    if (!creator_token) return res.status(400).json({ error: 'creator_token required' });
+    const { creator_token = '' } = req.body ?? {};
     const ok = storage.delistPlan(req.params.series_id, creator_token);
     if (!ok) return res.status(401).json({ error: 'Unauthorized' });
     return res.json({ delisted: true });

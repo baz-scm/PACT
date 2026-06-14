@@ -92,10 +92,13 @@ async function pollUntilApproved(series_id, config, pollIntervalMs = 3e3) {
   if (!config.enabled) return { approved: false, reason: "disabled" };
   const deadline = Date.now() + config.gate_timeout_seconds * 1e3;
   while (true) {
-    const response = await fetch(`${config.server}/api/plans/${series_id}`);
-    if (response.ok) {
-      const data = await response.json();
-      if (data.approved) return { approved: true, content: data.content };
+    try {
+      const response = await fetch(`${config.server}/api/plans/${series_id}`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.approved) return { approved: true, content: data.content };
+      }
+    } catch {
     }
     if (Date.now() >= deadline) return { approved: false, reason: "timeout" };
     await sleep(pollIntervalMs);

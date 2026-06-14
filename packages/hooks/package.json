@@ -1,6 +1,6 @@
 {
   "name": "@baz-scm/pact-hooks",
-  "version": "0.0.8",
+  "version": "0.0.9",
   "description": "Claude Code + Cursor hooks for PACT plan capture",
   "files": [
     "dist",
@@ -10,6 +10,7 @@
   ],
   "bin": {
     "pact-capture": "dist/cc-capture.js",
+    "pact-gate": "dist/cc-gate.js",
     "pact-nudge": "dist/cc-nudge.js",
     "pact-hooks": "dist/install.js"
   },

@@ -23,10 +23,14 @@ export async function pollUntilApproved(
   const deadline = Date.now() + config.gate_timeout_seconds * 1000;
 
   while (true) {
-    const response = await fetch(`${config.server}/api/plans/${series_id}`);
-    if (response.ok) {
-      const data = (await response.json()) as PlanResponse;
-      if (data.approved) return { approved: true, content: data.content };
+    try {
+      const response = await fetch(`${config.server}/api/plans/${series_id}`);
+      if (response.ok) {
+        const data = (await response.json()) as PlanResponse;
+        if (data.approved) return { approved: true, content: data.content };
+      }
+    } catch {
+      // server unreachable — keep waiting
     }
 
     if (Date.now() >= deadline) return { approved: false, reason: 'timeout' };

@@ -4,7 +4,7 @@ interface Props {
 
 export function ExpiryBanner({ expiresAt }: Props) {
   const ms = new Date(expiresAt).getTime() - Date.now();
-  if (ms <= 0) return null;
+  if (ms <= 0 || ms > 30 * 24 * 3600 * 1000) return null;
   const hours = Math.ceil(ms / 3600000);
   const label = hours < 2 ? `${Math.ceil(ms / 60000)} minutes` : `${hours} hours`;
   return (

@@ -6,6 +6,7 @@ export interface PlanResponse {
   source_tool: string;
   expires_at: string;
   approved: boolean;
+  rejected: boolean;
   share_token: string;
   created_at: string;
 }
@@ -15,6 +16,9 @@ export interface Comment {
   series_id: string;
   body: string;
   ip_hash: string;
+  anchor: string | null;
+  commenter_token: string | null;
+  resolved: boolean;
   created_at: string;
 }
 
@@ -51,6 +55,13 @@ export const api = {
       body: JSON.stringify({ creator_token }),
     }),
 
+  rejectPlan: (series_id: string, creator_token: string) =>
+    request<{ rejected: boolean }>(`/api/plans/${series_id}/reject`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ creator_token }),
+    }),
+
   delistPlan: (series_id: string, creator_token: string) =>
     request<{ delisted: boolean }>(`/api/plans/${series_id}`, {
       method: 'DELETE',
@@ -61,17 +72,31 @@ export const api = {
   getComments: (series_id: string) =>
     request<Comment[]>(`/api/plans/${series_id}/comments`),
 
-  addComment: (series_id: string, body: string) =>
+  addComment: (series_id: string, body: string, anchor?: string) =>
     request<Comment>(`/api/plans/${series_id}/comments`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ body }),
+      body: JSON.stringify({ body, anchor }),
     }),
 
-  deleteComment: (series_id: string, comment_id: string, creator_token: string) =>
+  updateComment: (series_id: string, comment_id: string, body: string, token: string) =>
+    request<Comment>(`/api/plans/${series_id}/comments/${comment_id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ body, token }),
+    }),
+
+  resolveComment: (series_id: string, comment_id: string, creator_token: string) =>
+    request<{ resolved: boolean }>(`/api/plans/${series_id}/comments/${comment_id}/resolve`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ creator_token }),
+    }),
+
+  deleteComment: (series_id: string, comment_id: string, token: string) =>
     request<{ deleted: boolean }>(`/api/plans/${series_id}/comments/${comment_id}`, {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ creator_token }),
+      body: JSON.stringify({ token }),
     }),
 };

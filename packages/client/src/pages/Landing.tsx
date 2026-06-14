@@ -55,12 +55,11 @@ export function Landing() {
             <h1 className="text-lg font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>Plans</h1>
             <ul className="space-y-2">
               {plans.map((plan) => {
-                const expired = new Date(plan.expires_at) < new Date();
                 const title = plan.content.split('\n')[0].replace(/^#+\s*/, '').trim() || plan.series_id;
                 return (
                   <li
                     key={plan.series_id}
-                    onClick={() => navigate(`/p/${plan.share_token}`)}
+                    onClick={() => navigate(`/viewer/${plan.share_token}`)}
                     className="flex items-center justify-between gap-3 px-4 py-3 rounded-lg border cursor-pointer transition-colors"
                     style={{
                       backgroundColor: 'var(--bg-card)',
@@ -80,8 +79,8 @@ export function Landing() {
                     <div className="flex items-center gap-2 shrink-0">
                       {plan.approved ? (
                         <Badge bg="var(--success-bg)" fg="var(--success-fg)">Approved</Badge>
-                      ) : expired ? (
-                        <Badge bg="var(--error-bg)" fg="var(--error-fg)">Expired</Badge>
+                      ) : plan.rejected ? (
+                        <Badge bg="var(--error-bg)" fg="var(--error-fg)">Rejected</Badge>
                       ) : (
                         <Badge bg="var(--warn-bg)" fg="var(--warn-fg)">Pending</Badge>
                       )}

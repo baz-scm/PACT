@@ -9,6 +9,7 @@ export interface PlanSeries {
   delisted: boolean;
   creator_token: string;
   approved: boolean;
+  rejected: boolean;
   created_at: Date;
 }
 
@@ -27,11 +28,14 @@ export interface Comment {
   series_id: string;
   body: string;
   ip_hash: string;
+  anchor: string | null;
+  commenter_token: string | null;
+  resolved: boolean;
   created_at: Date;
 }
 
 export interface CreatePlanParams {
-  series_key: string;
+  series_key?: string;
   content: string;
   author_kind: AuthorKind;
   source_tool: SourceTool;
@@ -55,9 +59,12 @@ export interface IStorage {
   getByShareToken(share_token: string): PlanResult | null;
   savePlan(series_id: string, content: string, creator_token: string): PlanResult | null;
   approvePlan(series_id: string, creator_token: string): boolean;
+  rejectPlan(series_id: string, creator_token: string): boolean;
   delistPlan(series_id: string, creator_token: string): boolean;
   expirePlans(): number;
-  addComment(series_id: string, body: string, ip_hash: string): Comment;
+  addComment(series_id: string, body: string, ip_hash: string, anchor?: string): Comment;
   getComments(series_id: string): Comment[];
-  deleteComment(comment_id: string, series_id: string, creator_token: string): boolean;
+  updateComment(series_id: string, comment_id: string, body: string, token: string): Comment | null;
+  deleteComment(comment_id: string, series_id: string, token: string): boolean;
+  resolveComment(comment_id: string, series_id: string, creator_token: string): boolean;
 }

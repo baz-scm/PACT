@@ -17,6 +17,7 @@
   --error-fg: #f3654a;
   --warn-bg: #fef9eb;
   --warn-fg: #be8c07;
+  --highlight-bg: #fef9c3;
 }
 
 .dark {
@@ -38,4 +39,5 @@
   --error-fg: #f3654a;
   --warn-bg: rgba(250, 202, 74, 0.2);
   --warn-fg: #faca4a;
+  --highlight-bg: rgba(254, 249, 195, 0.15);
 }
