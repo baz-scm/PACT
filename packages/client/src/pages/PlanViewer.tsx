@@ -15,6 +15,17 @@ function getCreatorToken(series_id: string): string | null {
   return localStorage.getItem(`pact_token_${series_id}`);
 }
 
+function parseAnchor(anchor: string): { start: number; end: number; quote: string | null } {
+  const [anchorPart, ...quoteParts] = anchor.split('#');
+  const quote = quoteParts.length ? quoteParts.join('#') : null;
+  if (anchorPart.includes('..')) {
+    const [s, e] = anchorPart.split('..');
+    return { start: parseInt(s.slice(2)), end: parseInt(e.slice(2)), quote };
+  }
+  const line = parseInt(anchorPart.slice(2));
+  return { start: line, end: line, quote };
+}
+
 function markQuote(children: React.ReactNode, quote: string): React.ReactNode {
   return React.Children.map(children, (child) => {
     if (typeof child === 'string') {
@@ -83,10 +94,11 @@ export function PlanViewer() {
   const anchoredComments = useMemo(() => {
     const map: Record<string, Comment[]> = {};
     for (const c of comments) {
-      if (c.anchor) {
-        const blockAnchor = c.anchor.split('#')[0];
-        (map[blockAnchor] ??= []).push(c);
-      }
+      if (!c.anchor) continue;
+      const anchorPart = c.anchor.split('#')[0];
+      // Range anchor p-5..p-13 → attach thread to end block so it appears after the selection
+      const startBlock = anchorPart.includes('..') ? anchorPart.split('..')[1] : anchorPart;
+      (map[startBlock] ??= []).push(c);
     }
     return map;
   }, [comments]);
@@ -100,16 +112,16 @@ export function PlanViewer() {
       return function Block({ node, children, ...props }: React.HTMLAttributes<HTMLElement> & { node?: MdNode }) {
         // Use source line number as anchor — stable across re-renders, immune to StrictMode double-invocation
         const anchor = node?.position ? `p-${node.position.start.line}` : null;
+        const blockLine = node?.position?.start.line ?? null;
         const thread = anchor ? (anchoredComments[anchor] ?? []) : [];
-        const quote = (anchor && highlightAnchor?.startsWith(anchor + '#'))
-          ? highlightAnchor.slice(anchor.length + 1)
-          : null;
-        const blockHighlight = anchor !== null && highlightAnchor === anchor;
+        const parsed = highlightAnchor ? parseAnchor(highlightAnchor) : null;
+        const inRange = parsed !== null && blockLine !== null && blockLine >= parsed.start && blockLine <= parsed.end;
+        const quote = inRange && parsed!.start === parsed!.end ? parsed!.quote : null;
         return (
           <>
             <Tag
               data-pact-anchor={anchor ?? undefined}
-              style={blockHighlight ? { backgroundColor: 'var(--highlight-bg)', borderRadius: '3px' } : undefined}
+              style={inRange ? { backgroundColor: 'var(--highlight-bg)', borderRadius: '3px' } : undefined}
               {...props}
             >
               {quote ? markQuote(children, quote) : children}
@@ -257,6 +269,7 @@ export function PlanViewer() {
     if (!token) return;
     api.deleteComment(plan.series_id, comment_id, token).catch(() => null);
     setComments((prev) => prev.filter((c) => c.id !== comment_id));
+    setHighlightAnchor(null);
   }
 
   const title = extractTitle(plan.content);

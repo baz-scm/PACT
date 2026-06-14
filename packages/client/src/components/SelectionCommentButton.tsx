@@ -18,13 +18,18 @@ function getPos(container: HTMLElement): Pos | null {
   if (!container.contains(range.commonAncestorContainer)) return null;
   const rect = range.getBoundingClientRect();
 
-  // Anchor: read the data-pact-anchor attribute set by PlanViewer's markdownComponents
-  const node = range.commonAncestorContainer;
-  const el = (node.nodeType === 3 ? node.parentElement : node) as HTMLElement | null;
-  const block = el?.closest('[data-pact-anchor]') as HTMLElement | null;
-  const blockAnchor = block?.dataset.pactAnchor ?? null;
+  function findBlockAnchor(n: Node): string | null {
+    const el = (n.nodeType === 3 ? n.parentElement : n) as HTMLElement | null;
+    return el?.closest('[data-pact-anchor]')?.getAttribute('data-pact-anchor') ?? null;
+  }
+  const startAnchor = findBlockAnchor(range.startContainer);
+  const endAnchor = findBlockAnchor(range.endContainer);
   const quote = sel.toString().replace(/\s+/g, ' ').trim().slice(0, 150);
-  const anchor = blockAnchor ? (quote ? `${blockAnchor}#${quote}` : blockAnchor) : null;
+  const anchorBase =
+    startAnchor && endAnchor && startAnchor !== endAnchor
+      ? `${startAnchor}..${endAnchor}`
+      : (startAnchor ?? null);
+  const anchor = anchorBase ? (quote ? `${anchorBase}#${quote}` : anchorBase) : null;
 
   return { x: rect.right, y: rect.top - 4, anchor };
 }
