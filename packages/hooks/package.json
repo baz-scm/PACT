@@ -1,6 +1,6 @@
 {
   "name": "@baz-scm/pact-hooks",
-  "version": "0.0.9",
+  "version": "0.1.0",
   "description": "Claude Code + Cursor hooks for PACT plan capture",
   "files": [
     "dist",

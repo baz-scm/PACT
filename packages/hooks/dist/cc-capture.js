@@ -125,14 +125,6 @@ async function fetchLastContent(server, series_id) {
     return null;
   }
 }
-function allow() {
-  process.stdout.write(JSON.stringify({
-    hookSpecificOutput: {
-      hookEventName: "PermissionRequest",
-      decision: { behavior: "allow" }
-    }
-  }));
-}
 async function runCapture(input, env, cwd, homeDir) {
   let envelope;
   try {
@@ -144,10 +136,7 @@ async function runCapture(input, env, cwd, homeDir) {
   const plan = envelope.tool_input?.plan ?? "";
   if (!plan.trim()) return;
   const config = loadConfig(cwd, homeDir);
-  if (!config.enabled) {
-    allow();
-    return;
-  }
+  if (!config.enabled) return;
   const redacted = redactContent(plan, config.redact);
   const series_key = getCCSeriesKey(env);
   const existingState = readState(series_key, homeDir);
@@ -190,7 +179,6 @@ Plan captured: ${share_url}#token=${data.creator_token}
     process.stderr.write(`[PACT] Error: ${e}
 `);
   }
-  allow();
 }
 if (require.main === module) {
   async function main() {
@@ -205,10 +193,7 @@ if (require.main === module) {
     await runCapture(input, process.env, process.cwd());
     process.exit(0);
   }
-  main().catch(() => {
-    allow();
-    process.exit(0);
-  });
+  main().catch(() => process.exit(0));
 }
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {

@@ -42,18 +42,21 @@ function install(): void {
   const settings = readSettings();
   settings.hooks ??= {};
 
-  settings.hooks['PreToolUse'] ??= [];
-  if (!hasHook(settings.hooks['PreToolUse'], 'pact-capture')) {
-    settings.hooks['PreToolUse'].push({
+  // Both hooks in one matcher entry so capture runs before gate in the same event.
+  // PermissionRequest fires when CC wants to exit plan mode — capture posts the plan
+  // first (writing state), then gate polls until a human approves in the browser.
+  settings.hooks['PermissionRequest'] ??= [];
+  if (!hasHook(settings.hooks['PermissionRequest'], 'pact-capture')) {
+    settings.hooks['PermissionRequest'].push({
       matcher: 'ExitPlanMode',
       hooks: [
         { type: 'command', command: 'pact-capture' },
         { type: 'command', command: 'pact-gate' },
       ],
     });
-    console.log('✓ Registered pact-capture + pact-gate (PreToolUse/ExitPlanMode)');
+    console.log('✓ Registered pact-capture + pact-gate (PermissionRequest/ExitPlanMode)');
   } else {
-    console.log('  pact-capture already registered');
+    console.log('  pact-capture + pact-gate already registered');
   }
 
   settings.hooks['UserPromptSubmit'] ??= [];
@@ -82,7 +85,7 @@ function uninstall(): void {
     return;
   }
 
-  for (const event of ['PreToolUse', 'PostToolUse', 'UserPromptSubmit']) {
+  for (const event of ['PreToolUse', 'PostToolUse', 'UserPromptSubmit', 'PermissionRequest']) {
     if (!settings.hooks[event]) continue;
     settings.hooks[event] = settings.hooks[event].filter(
       (m) => !m.hooks.some((h) =>

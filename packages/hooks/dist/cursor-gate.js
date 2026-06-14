@@ -88,6 +88,53 @@ function readState(series_key, homeDir) {
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
+async function fetchComments(server, series_id) {
+  try {
+    const res = await fetch(`${server}/api/plans/${series_id}/comments`);
+    if (!res.ok) return [];
+    return await res.json();
+  } catch {
+    return [];
+  }
+}
+function weaveComments(content, comments) {
+  const open = comments.filter((c) => !c.resolved);
+  if (open.length === 0) return content;
+  const byLine = /* @__PURE__ */ new Map();
+  const unanchored = [];
+  for (const c of open) {
+    if (!c.anchor) {
+      unanchored.push(c);
+      continue;
+    }
+    const anchorPart = c.anchor.split("#")[0];
+    const linePart = anchorPart.includes("..") ? anchorPart.split("..")[1] : anchorPart;
+    const line = parseInt(linePart.slice(2));
+    if (!isNaN(line)) {
+      (byLine.get(line) ?? byLine.set(line, []).get(line)).push(c);
+    } else {
+      unanchored.push(c);
+    }
+  }
+  const lines = content.split("\n");
+  const out = [];
+  for (let i = 0; i < lines.length; i++) {
+    out.push(lines[i]);
+    const thread = byLine.get(i + 1);
+    if (thread) {
+      for (const c of thread) {
+        out.push(`> [reviewer] ${c.body}`);
+      }
+    }
+  }
+  if (unanchored.length > 0) {
+    out.push("", "---", "**General comments:**");
+    for (const c of unanchored) {
+      out.push(`- ${c.body}`);
+    }
+  }
+  return out.join("\n");
+}
 async function pollUntilApproved(series_id, config, pollIntervalMs = 3e3) {
   if (!config.enabled) return { approved: false, reason: "disabled" };
   const deadline = Date.now() + config.gate_timeout_seconds * 1e3;
@@ -96,11 +143,32 @@ async function pollUntilApproved(series_id, config, pollIntervalMs = 3e3) {
       const response = await fetch(`${config.server}/api/plans/${series_id}`);
       if (response.ok) {
         const data = await response.json();
-        if (data.approved) return { approved: true, content: data.content };
+        if (data.approved) {
+          const comments = await fetchComments(config.server, series_id);
+          const content = weaveComments(data.content, comments);
+          return { approved: true, content };
+        }
+        if (data.rejected) {
+          const comments = await fetchComments(config.server, series_id);
+          const content = weaveComments(data.content, comments);
+          return { approved: false, reason: "rejected", content };
+        }
       }
     } catch {
     }
-    if (Date.now() >= deadline) return { approved: false, reason: "timeout" };
+    if (Date.now() >= deadline) {
+      let timedOutContent = "";
+      try {
+        const r = await fetch(`${config.server}/api/plans/${series_id}`);
+        if (r.ok) {
+          const d = await r.json();
+          const comments = await fetchComments(config.server, series_id);
+          timedOutContent = weaveComments(d.content, comments);
+        }
+      } catch {
+      }
+      return { approved: false, reason: "timeout", content: timedOutContent };
+    }
     await sleep(pollIntervalMs);
   }
 }

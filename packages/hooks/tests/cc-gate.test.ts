@@ -38,22 +38,44 @@ describe('cc-gate', () => {
     expect(mockFetch).not.toHaveBeenCalled();
   });
 
-  it('writes approved plan to stdout', async () => {
+  it('writes allow + context to stdout on approval', async () => {
     writeState('sess1:/project:main', { series_id: 'p1', series_key: 'sess1:/project:main', creator_token: 'tok', share_url: 'http://x' }, tmpDir);
-    mockFetch.mockResolvedValue({ ok: true, json: async () => ({ approved: true, content: '# Approved' }) });
+    mockFetch
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ approved: true, rejected: false, content: '# Approved' }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => [] });
     await runGate(envelope, env, tmpDir, tmpDir, 50);
     const written = (stdoutSpy.mock.calls.map((c) => c[0]) as string[]).join('');
-    const parsed = JSON.parse(written) as { hookSpecificOutput: { additionalContext: string } };
-    expect(parsed.hookSpecificOutput.additionalContext).toContain('# Approved');
+    const parsed = JSON.parse(written) as { behavior: string; message: string };
+    expect(parsed.behavior).toBe('allow');
+    expect(parsed.message).toContain('# Approved');
   });
 
-  it('writes to stderr and no stdout on timeout', async () => {
+  it('writes block with feedback on rejection', async () => {
     writeState('sess1:/project:main', { series_id: 'p1', series_key: 'sess1:/project:main', creator_token: 'tok', share_url: 'http://x' }, tmpDir);
-    mockFetch.mockResolvedValue({ ok: true, json: async () => ({ approved: false, content: '' }) });
-    const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    mockFetch
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ approved: false, rejected: true, content: '# Plan' }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ([{ body: 'too risky', anchor: null, resolved: false }]) });
+    await runGate(envelope, env, tmpDir, tmpDir, 50);
+    const written = (stdoutSpy.mock.calls.map((c) => c[0]) as string[]).join('');
+    const parsed = JSON.parse(written) as { behavior: string; message: string };
+    expect(parsed.behavior).toBe('block');
+    expect(parsed.message).toContain('rejected');
+    expect(parsed.message).toContain('too risky');
+  });
+
+  it('writes block with plan content on timeout', async () => {
+    writeState('sess1:/project:main', { series_id: 'p1', series_key: 'sess1:/project:main', creator_token: 'tok', share_url: 'http://x' }, tmpDir);
+    mockFetch.mockImplementation((url: string) =>
+      Promise.resolve({
+        ok: true,
+        json: async () => url.endsWith('/comments') ? [] : { approved: false, rejected: false, content: '# The Plan' },
+      })
+    );
     await runGate(envelope, env, tmpDir, tmpDir, 30, 0.05);
-    expect(stdoutSpy).not.toHaveBeenCalled();
-    expect(stderrSpy.mock.calls.map((c) => c[0]).join('')).toContain('timed out');
-    stderrSpy.mockRestore();
+    const written = (stdoutSpy.mock.calls.map((c) => c[0]) as string[]).join('');
+    const parsed = JSON.parse(written) as { behavior: string; message: string };
+    expect(parsed.behavior).toBe('block');
+    expect(parsed.message).toContain('not approved');
+    expect(parsed.message).toContain('# The Plan');
   });
 });

@@ -81,12 +81,17 @@ export class SqliteStorage implements IStorage {
         return toResult(existing, existingVersion!, true);
       }
 
-      // Free tier: overwrite the single version row
+      // Free tier: overwrite the single version row and reset lifecycle state
       const newVersionId = uuid();
       this.db
         .update(planVersions)
         .set({ id: newVersionId, content, content_hash: hash, author_kind, source_tool, created_at: now })
         .where(eq(planVersions.series_id, existing.id))
+        .run();
+      this.db
+        .update(planSeries)
+        .set({ approved: false, rejected: false })
+        .where(eq(planSeries.id, existing.id))
         .run();
 
       const updated = this.db

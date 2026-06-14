@@ -1,7 +1,7 @@
 {
   "name": "pact-hooks",
   "displayName": "PACT",
-  "version": "0.0.9",
+  "version": "0.1.0",
   "description": "Captures Claude Code plans to PACT for human review before execution",
   "author": { "name": "baz-scm" }
 }

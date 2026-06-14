@@ -35,13 +35,23 @@ export async function runGate(
 
   if (result.approved) {
     process.stdout.write(JSON.stringify({
-      hookSpecificOutput: {
-        hookEventName: 'PostToolUse',
-        additionalContext: `[PACT] Plan approved by reviewer. Proceed with this reviewed plan:\n\n${result.content}`,
-      },
+      behavior: 'allow',
+      message: `[PACT] Plan approved. Proceed with this reviewed plan:\n\n${result.content}`,
+    }));
+  } else if (result.reason === 'rejected') {
+    const state2 = readState(series_key, homeDir);
+    const url = state2?.share_url ?? config.server;
+    process.stdout.write(JSON.stringify({
+      behavior: 'block',
+      message: `[PACT] Plan rejected. Do not proceed. Review feedback at: ${url}\n\n${result.content}`,
     }));
   } else if (result.reason === 'timeout') {
-    process.stderr.write('[PACT] Review timed out, proceeding.\n');
+    const state2 = readState(series_key, homeDir);
+    const url = state2?.share_url ?? config.server;
+    process.stdout.write(JSON.stringify({
+      behavior: 'block',
+      message: `[PACT] Plan not approved — review timed out. Approve at: ${url}\n\n${result.content}`,
+    }));
   }
 }
 

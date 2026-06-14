@@ -46,18 +46,18 @@ function hasHook(list, command) {
 function install() {
   const settings = readSettings();
   settings.hooks ??= {};
-  settings.hooks["PreToolUse"] ??= [];
-  if (!hasHook(settings.hooks["PreToolUse"], "pact-capture")) {
-    settings.hooks["PreToolUse"].push({
+  settings.hooks["PermissionRequest"] ??= [];
+  if (!hasHook(settings.hooks["PermissionRequest"], "pact-capture")) {
+    settings.hooks["PermissionRequest"].push({
       matcher: "ExitPlanMode",
       hooks: [
         { type: "command", command: "pact-capture" },
         { type: "command", command: "pact-gate" }
       ]
     });
-    console.log("\u2713 Registered pact-capture + pact-gate (PreToolUse/ExitPlanMode)");
+    console.log("\u2713 Registered pact-capture + pact-gate (PermissionRequest/ExitPlanMode)");
   } else {
-    console.log("  pact-capture already registered");
+    console.log("  pact-capture + pact-gate already registered");
   }
   settings.hooks["UserPromptSubmit"] ??= [];
   if (!hasHook(settings.hooks["UserPromptSubmit"], "pact-nudge")) {
@@ -83,7 +83,7 @@ function uninstall() {
     console.log("No hooks configured.");
     return;
   }
-  for (const event of ["PreToolUse", "PostToolUse", "UserPromptSubmit"]) {
+  for (const event of ["PreToolUse", "PostToolUse", "UserPromptSubmit", "PermissionRequest"]) {
     if (!settings.hooks[event]) continue;
     settings.hooks[event] = settings.hooks[event].filter(
       (m) => !m.hooks.some(

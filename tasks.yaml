@@ -287,7 +287,7 @@ tasks:
       On timeout: logs "Web review timed out, proceeding." Exit 0.
       Test: mock server → approved on 2nd poll; timeout path exits 0.
     depends_on: [hooks-cc-capture]
-    status: todo
+    status: done
 
   - id: hooks-cc-nudge
     title: Claude Code plan-mode nudge hook (UserPromptSubmit)
@@ -352,7 +352,94 @@ tasks:
     depends_on: [checkpoint-round-trip]
     status: in_progress
 
-  # ── PHASE 4: DOCKER + PUBLISH ─────────────────────────────────────────────
+  # ── PHASE 4: REVIEW UX ───────────────────────────────────────────────────
+  - id: gate-timeout-and-expiry
+    title: Gate timeout 96h + plan expiry 7d
+    description: |
+      Two related defaults that are too short for real team review:
+
+      hooks/src/config.ts: gate_timeout_seconds default 300 → 345600 (96 hours).
+      Update cc-gate timeout test — "timeout path" now waits 96h in config, so use
+        env override PACT_GATE_TIMEOUT_SECONDS=1 in tests (already supported).
+
+      server/src/storage/sqlite.ts: expires_at = NOW + 7 days (was 24h).
+      Update api-sweep test: plan with expires_at = 7 days from now → sweep leaves it alone.
+
+      Config doc (hooks/README.md + CLAUDE.md invariants table): note new defaults.
+    depends_on: [hooks-install]
+    status: todo
+
+  - id: comment-labels
+    title: Conventional Comments labels on comments
+    description: |
+      Port plannotator's ConventionalLabelPicker to pact.
+
+      Server (packages/server/src/storage/schema.ts):
+        Add to comments table:
+          label      TEXT NULL  — praise|nitpick|suggestion|issue|todo|question|thought
+          decoration TEXT NULL  — blocking|non-blocking|if-minor
+        Migration: ALTER TABLE comments ADD COLUMN label TEXT; ADD COLUMN decoration TEXT.
+        Expose both fields in GET /api/plans/:series_id/comments response.
+        POST /api/plans/:series_id/comments body now accepts { body, anchor?, label?, decoration? }.
+      Tests: add comment with label=blocking decoration=blocking → returned in GET.
+
+      Client (packages/client/src/components/):
+        Copy packages/review-editor/components/ConventionalLabelPicker.tsx from plannotator.
+        Embed in comment compose textarea — label picker row appears above Submit button.
+        Each comment in thread shows a colored chip: e.g. "🔴 blocking", "💡 suggestion".
+
+      Gate weave (packages/hooks/src/gate-core.ts → weaveComments()):
+        decoration=blocking comments prefixed "⛔ [BLOCKING]" in the weaved markdown
+        so the agent sees them clearly after approval.
+    depends_on: [gate-timeout-and-expiry]
+    status: todo
+
+  - id: comment-panel
+    title: Annotation sidebar + image attachments
+    description: |
+      Port two plannotator UI patterns into PlanViewer.
+
+      1. Resizable annotation panel (right sidebar):
+        Copy packages/ui/hooks/useResizablePanel.ts and packages/ui/components/ResizeHandle.tsx
+          from plannotator verbatim (no deps outside React).
+        PlanViewer layout: flex row — plan content (flex 1) | resize handle | annotation panel.
+        Panel lists all comments sorted by anchor line, showing:
+          reviewer name (ip_hash abbreviated for now), label chip, body excerpt, timestamp.
+        Click row → scrolls plan to anchor, highlights the paragraph.
+        Panel width persisted in localStorage key "pact_panel_width". Default 320px.
+        Collapses to icon bar on mobile (<768px).
+
+      2. Image attachments on comments:
+        Server schema: ADD COLUMN images TEXT NULL to comments (JSON array of base64url strings).
+        Validate server-side: max 3 images, each ≤ 512 KB after base64 decode.
+        Copy packages/ui/components/AttachmentsButton.tsx + ImageThumbnail.tsx from plannotator.
+        Wire into comment compose: paperclip button opens file picker or accepts paste/drop.
+        Images stored inline in SQLite; displayed as expandable thumbnails in comment thread
+          and in the annotation panel.
+
+      Tests:
+        POST comment with images=[...base64...] → GET returns images array.
+        POST comment with 4 images → 400.
+        POST comment with image > 512 KB → 400.
+    depends_on: [comment-labels]
+    status: todo
+
+  # ── CHECKPOINT 6 ──────────────────────────────────────────────────────────
+  - id: checkpoint-review-ux
+    title: "CHECKPOINT: Rich comment UX end-to-end"
+    description: |
+      Manual flow:
+        1. Submit plan via CC hook — gate waits (up to 96h shown in terminal)
+        2. Open browser — annotation panel visible on right
+        3. Add a "blocking" comment with an image attachment
+        4. Verify label chip appears in thread + panel sidebar
+        5. Approve — gate hook unblocks, weaved markdown shows ⛔ [BLOCKING] prefix
+        6. Plan still accessible 25h later (7-day expiry)
+      pnpm test — all new tests green.
+    depends_on: [comment-panel]
+    status: todo
+
+  # ── PHASE 5: DOCKER + PUBLISH ─────────────────────────────────────────────
   - id: docker
     title: Docker image (self-host)
     description: |

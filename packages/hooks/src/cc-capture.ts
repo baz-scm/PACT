@@ -28,15 +28,6 @@ interface PlanResponse {
   share_token: string;
 }
 
-function allow(): void {
-  process.stdout.write(JSON.stringify({
-    hookSpecificOutput: {
-      hookEventName: 'PermissionRequest',
-      decision: { behavior: 'allow' },
-    },
-  }));
-}
-
 export async function runCapture(
   input: string,
   env: Record<string, string | undefined>,
@@ -56,7 +47,7 @@ export async function runCapture(
   if (!plan.trim()) return;
 
   const config = loadConfig(cwd, homeDir);
-  if (!config.enabled) { allow(); return; }
+  if (!config.enabled) return;
 
   const redacted = redactContent(plan, config.redact);
   const series_key = getCCSeriesKey(env);
@@ -106,7 +97,6 @@ export async function runCapture(
     process.stderr.write(`[PACT] Error: ${e}\n`);
   }
 
-  allow();
 }
 
 if (require.main === module) {
@@ -120,5 +110,5 @@ if (require.main === module) {
     await runCapture(input, process.env as Record<string, string | undefined>, process.cwd());
     process.exit(0);
   }
-  main().catch(() => { allow(); process.exit(0); });
+  main().catch(() => process.exit(0));
 }
