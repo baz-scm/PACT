@@ -47,7 +47,7 @@ var defaultConfig = {
   server: "http://localhost:3000",
   redact: [],
   nudge: true,
-  gate_timeout_seconds: 300
+  gate_timeout_seconds: 86400
 };
 function loadConfig(cwd, homeDir) {
   const dir = cwd ?? process.cwd();

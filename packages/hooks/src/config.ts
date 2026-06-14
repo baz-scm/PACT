@@ -17,7 +17,7 @@ export const defaultConfig: PactConfig = {
   server: 'http://localhost:3000',
   redact: [],
   nudge: true,
-  gate_timeout_seconds: 300,
+  gate_timeout_seconds: 86400,
 };
 
 export function loadConfig(cwd?: string, homeDir?: string): PactConfig {

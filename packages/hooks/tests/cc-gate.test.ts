@@ -45,9 +45,9 @@ describe('cc-gate', () => {
       .mockResolvedValueOnce({ ok: true, json: async () => [] });
     await runGate(envelope, env, tmpDir, tmpDir, 50);
     const written = (stdoutSpy.mock.calls.map((c) => c[0]) as string[]).join('');
-    const parsed = JSON.parse(written) as { behavior: string; message: string };
-    expect(parsed.behavior).toBe('allow');
-    expect(parsed.message).toContain('# Approved');
+    const parsed = JSON.parse(written) as { hookSpecificOutput: { decision: { behavior: string }; additionalContext: string } };
+    expect(parsed.hookSpecificOutput.decision.behavior).toBe('allow');
+    expect(parsed.hookSpecificOutput.additionalContext).toContain('# Approved');
   });
 
   it('writes block with feedback on rejection', async () => {
@@ -57,10 +57,10 @@ describe('cc-gate', () => {
       .mockResolvedValueOnce({ ok: true, json: async () => ([{ body: 'too risky', anchor: null, resolved: false }]) });
     await runGate(envelope, env, tmpDir, tmpDir, 50);
     const written = (stdoutSpy.mock.calls.map((c) => c[0]) as string[]).join('');
-    const parsed = JSON.parse(written) as { behavior: string; message: string };
-    expect(parsed.behavior).toBe('block');
-    expect(parsed.message).toContain('rejected');
-    expect(parsed.message).toContain('too risky');
+    const parsed = JSON.parse(written) as { hookSpecificOutput: { decision: { behavior: string }; additionalContext: string } };
+    expect(parsed.hookSpecificOutput.decision.behavior).toBe('deny');
+    expect(parsed.hookSpecificOutput.additionalContext).toContain('rejected');
+    expect(parsed.hookSpecificOutput.additionalContext).toContain('too risky');
   });
 
   it('writes block with plan content on timeout', async () => {
@@ -73,9 +73,9 @@ describe('cc-gate', () => {
     );
     await runGate(envelope, env, tmpDir, tmpDir, 30, 0.05);
     const written = (stdoutSpy.mock.calls.map((c) => c[0]) as string[]).join('');
-    const parsed = JSON.parse(written) as { behavior: string; message: string };
-    expect(parsed.behavior).toBe('block');
-    expect(parsed.message).toContain('not approved');
-    expect(parsed.message).toContain('# The Plan');
+    const parsed = JSON.parse(written) as { hookSpecificOutput: { decision: { behavior: string }; additionalContext: string } };
+    expect(parsed.hookSpecificOutput.decision.behavior).toBe('deny');
+    expect(parsed.hookSpecificOutput.additionalContext).toContain('not approved');
+    expect(parsed.hookSpecificOutput.additionalContext).toContain('# The Plan');
   });
 });

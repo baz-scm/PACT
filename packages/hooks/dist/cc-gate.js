@@ -45,7 +45,7 @@ var defaultConfig = {
   server: "http://localhost:3000",
   redact: [],
   nudge: true,
-  gate_timeout_seconds: 300
+  gate_timeout_seconds: 86400
 };
 function loadConfig(cwd, homeDir) {
   const dir = cwd ?? process.cwd();
@@ -193,31 +193,35 @@ async function runGate(input, env, cwd, homeDir, pollIntervalMs, gateSecs) {
   const config = loadConfig(cwd, homeDir);
   if (gateSecs !== void 0) config.gate_timeout_seconds = gateSecs;
   const result = await pollUntilApproved(state.series_id, config, pollIntervalMs);
+  const deny = (additionalContext) => process.stdout.write(JSON.stringify({
+    hookSpecificOutput: {
+      hookEventName: "PermissionRequest",
+      decision: { behavior: "deny" },
+      additionalContext
+    }
+  }));
   if (result.approved) {
     process.stdout.write(JSON.stringify({
-      behavior: "allow",
-      message: `[PACT] Plan approved. Proceed with this reviewed plan:
+      hookSpecificOutput: {
+        hookEventName: "PermissionRequest",
+        decision: { behavior: "allow" },
+        additionalContext: `[PACT] Plan approved. Proceed with this reviewed plan:
 
-${result.content}`
+${result.content}`.slice(0, 1e4)
+      }
     }));
   } else if (result.reason === "rejected") {
     const state2 = readState(series_key, homeDir);
     const url = state2?.share_url ?? config.server;
-    process.stdout.write(JSON.stringify({
-      behavior: "block",
-      message: `[PACT] Plan rejected. Do not proceed. Review feedback at: ${url}
+    deny(`[PACT] Plan rejected. Do not proceed. Review feedback at: ${url}
 
-${result.content}`
-    }));
+${result.content}`);
   } else if (result.reason === "timeout") {
     const state2 = readState(series_key, homeDir);
     const url = state2?.share_url ?? config.server;
-    process.stdout.write(JSON.stringify({
-      behavior: "block",
-      message: `[PACT] Plan not approved \u2014 review timed out. Approve at: ${url}
+    deny(`[PACT] Plan not approved \u2014 review timed out. Approve at: ${url}
 
-${result.content}`
-    }));
+${result.content}`);
   }
 }
 if (require.main === module) {

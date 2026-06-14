@@ -328,7 +328,7 @@ tasks:
       pnpm -F hooks install (or npx @baz-scm/pact-hooks install) wires everything up.
       Open CC, enter plan mode → URL printed in terminal → plan visible in browser.
     depends_on: [hooks-cc-capture, hooks-cc-nudge]
-    status: in_progress
+    status: done
 
   # ── CHECKPOINT 4 ──────────────────────────────────────────────────────────
   - id: checkpoint-round-trip
@@ -350,7 +350,7 @@ tasks:
         config reference, per-repo disable, self-host URL override.
       pnpm package: @baz-scm/pact-hooks.
     depends_on: [checkpoint-round-trip]
-    status: in_progress
+    status: done
 
   # ── PHASE 4: REVIEW UX ───────────────────────────────────────────────────
   - id: gate-timeout-and-expiry
@@ -367,7 +367,7 @@ tasks:
 
       Config doc (hooks/README.md + CLAUDE.md invariants table): note new defaults.
     depends_on: [hooks-install]
-    status: todo
+    status: done
 
   - id: comment-labels
     title: Conventional Comments labels on comments

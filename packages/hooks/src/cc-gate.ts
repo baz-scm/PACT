@@ -33,25 +33,31 @@ export async function runGate(
 
   const result = await pollUntilApproved(state.series_id, config, pollIntervalMs);
 
+  const deny = (additionalContext: string) =>
+    process.stdout.write(JSON.stringify({
+      hookSpecificOutput: {
+        hookEventName: 'PermissionRequest',
+        decision: { behavior: 'deny' },
+        additionalContext,
+      },
+    }));
+
   if (result.approved) {
     process.stdout.write(JSON.stringify({
-      behavior: 'allow',
-      message: `[PACT] Plan approved. Proceed with this reviewed plan:\n\n${result.content}`,
+      hookSpecificOutput: {
+        hookEventName: 'PermissionRequest',
+        decision: { behavior: 'allow' },
+        additionalContext: `[PACT] Plan approved. Proceed with this reviewed plan:\n\n${result.content}`.slice(0, 10000),
+      },
     }));
   } else if (result.reason === 'rejected') {
     const state2 = readState(series_key, homeDir);
     const url = state2?.share_url ?? config.server;
-    process.stdout.write(JSON.stringify({
-      behavior: 'block',
-      message: `[PACT] Plan rejected. Do not proceed. Review feedback at: ${url}\n\n${result.content}`,
-    }));
+    deny(`[PACT] Plan rejected. Do not proceed. Review feedback at: ${url}\n\n${result.content}`);
   } else if (result.reason === 'timeout') {
     const state2 = readState(series_key, homeDir);
     const url = state2?.share_url ?? config.server;
-    process.stdout.write(JSON.stringify({
-      behavior: 'block',
-      message: `[PACT] Plan not approved — review timed out. Approve at: ${url}\n\n${result.content}`,
-    }));
+    deny(`[PACT] Plan not approved — review timed out. Approve at: ${url}\n\n${result.content}`);
   }
 }
 

@@ -6,14 +6,26 @@ Claude Code hooks that capture plan-mode output to [PACT](https://github.com/baz
 
 | Hook | Event | Behaviour |
 |------|-------|-----------|
-| `cc-capture` | `PostToolUse / ExitPlanMode` | Sends the plan to PACT, stores the share URL + creator token locally, prints the URL to your terminal |
+| `cc-capture` | `PermissionRequest / ExitPlanMode` | Sends the plan to PACT, stores the share URL + creator token locally, prints the URL to your terminal |
+| `cc-gate` | `PermissionRequest / ExitPlanMode` | Blocks plan execution until a human approves in the browser |
 | `cc-nudge` | `UserPromptSubmit` | If your prompt is long and no plan has been captured yet for this session, suggests using `/plan` mode |
 
-## Install via Claude Code plugin
+## Install
 
 ```bash
-claude plugin marketplace add baz-scm/PACT
-claude plugin install pact-hooks@baz
+npx @baz-scm/pact-hooks install
+```
+
+Or with pnpm:
+
+```bash
+pnpm dlx @baz-scm/pact-hooks install
+```
+
+Or one-liner:
+
+```bash
+curl -fsSL https://pact.baz.co/install.sh | sh
 ```
 
 Restart Claude Code. That's it.
@@ -56,7 +68,7 @@ echo '{"server":"https://plan.baz.co"}' > ~/.pact/config.json
 | `enabled` | `true` | Set `false` to disable all hooks |
 | `nudge` | `true` | Remind you to use plan mode on long prompts |
 | `redact` | `[]` | Regex patterns — matched text replaced with `[REDACTED]` before upload |
-| `gate_timeout_seconds` | `300` | How long the gate hook waits for approval |
+| `gate_timeout_seconds` | `86400` | How long the gate hook waits for approval |
 
 ## Smart series detection
 
