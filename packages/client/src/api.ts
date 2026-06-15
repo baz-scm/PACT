@@ -4,9 +4,13 @@ export interface PlanResponse {
   content: string;
   author_kind: string;
   source_tool: string;
+  model_id: string | null;
+  input_tokens: number | null;
+  output_tokens: number | null;
   expires_at: string;
   approved: boolean;
   rejected: boolean;
+  implemented: boolean;
   share_token: string;
   created_at: string;
 }
@@ -17,7 +21,6 @@ export interface Comment {
   body: string;
   ip_hash: string;
   anchor: string | null;
-  commenter_token: string | null;
   resolved: boolean;
   created_at: string;
 }
@@ -41,32 +44,31 @@ export const api = {
   getBySeriesId: (series_id: string) =>
     request<PlanResponse>(`/api/plans/${series_id}`),
 
-  savePlan: (series_id: string, content: string, creator_token: string) =>
+  savePlan: (series_id: string, content: string) =>
     request<PlanResponse>(`/api/plans/${series_id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content, creator_token }),
+      body: JSON.stringify({ content }),
     }),
 
-  approvePlan: (series_id: string, creator_token: string) =>
+  approvePlan: (series_id: string) =>
     request<{ approved: boolean }>(`/api/plans/${series_id}/approve`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ creator_token }),
     }),
 
-  rejectPlan: (series_id: string, creator_token: string) =>
+  rejectPlan: (series_id: string) =>
     request<{ rejected: boolean }>(`/api/plans/${series_id}/reject`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ creator_token }),
     }),
 
-  delistPlan: (series_id: string, creator_token: string) =>
+  implementPlan: (series_id: string) =>
+    request<{ implemented: boolean }>(`/api/plans/${series_id}/implement`, {
+      method: 'POST',
+    }),
+
+  delistPlan: (series_id: string) =>
     request<{ delisted: boolean }>(`/api/plans/${series_id}`, {
       method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ creator_token }),
     }),
 
   getComments: (series_id: string) =>
@@ -79,24 +81,20 @@ export const api = {
       body: JSON.stringify({ body, anchor }),
     }),
 
-  updateComment: (series_id: string, comment_id: string, body: string, token: string) =>
+  updateComment: (series_id: string, comment_id: string, body: string) =>
     request<Comment>(`/api/plans/${series_id}/comments/${comment_id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ body, token }),
+      body: JSON.stringify({ body }),
     }),
 
-  resolveComment: (series_id: string, comment_id: string, creator_token: string) =>
+  resolveComment: (series_id: string, comment_id: string) =>
     request<{ resolved: boolean }>(`/api/plans/${series_id}/comments/${comment_id}/resolve`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ creator_token }),
     }),
 
-  deleteComment: (series_id: string, comment_id: string, token: string) =>
+  deleteComment: (series_id: string, comment_id: string) =>
     request<{ deleted: boolean }>(`/api/plans/${series_id}/comments/${comment_id}`, {
       method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token }),
     }),
 };

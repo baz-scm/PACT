@@ -3,7 +3,6 @@ import { api, type Comment } from '../api';
 
 interface Props {
   series_id: string;
-  creator_token: string | null;
   comments: Comment[];
   onAdd: (body: string, anchor?: string) => Promise<void>;
   onDelete: (comment_id: string) => void;
@@ -22,7 +21,7 @@ function relativeTime(iso: string) {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
-export function Comments({ series_id, creator_token, comments, onAdd, onDelete, onUpdate, onResolve, onHighlightAnchor }: Props) {
+export function Comments({ series_id, comments, onAdd, onDelete, onUpdate, onResolve, onHighlightAnchor }: Props) {
   const [body, setBody] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -55,7 +54,6 @@ export function Comments({ series_id, creator_token, comments, onAdd, onDelete, 
             key={c.id}
             comment={c}
             series_id={series_id}
-            creator_token={creator_token}
             onDelete={onDelete}
             onUpdate={onUpdate}
             onResolve={onResolve}
@@ -70,6 +68,7 @@ export function Comments({ series_id, creator_token, comments, onAdd, onDelete, 
         value={body}
         onChange={(e) => setBody(e.target.value)}
         onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) void submit(); }}
+        data-comment-input
         placeholder="Add a comment…"
         className="w-full rounded-md p-2.5 text-sm resize-none h-20 focus:outline-none"
         style={{
@@ -94,7 +93,6 @@ export function Comments({ series_id, creator_token, comments, onAdd, onDelete, 
 export function CommentRow({
   comment,
   series_id,
-  creator_token,
   onDelete,
   onUpdate,
   onResolve,
@@ -102,7 +100,6 @@ export function CommentRow({
 }: {
   comment: Comment;
   series_id: string;
-  creator_token: string | null;
   onDelete: (id: string) => void;
   onUpdate: (id: string, body: string) => void;
   onResolve?: (id: string) => void;
@@ -112,16 +109,13 @@ export function CommentRow({
   const [editBody, setEditBody] = useState(comment.body);
   const [saving, setSaving] = useState(false);
 
-  const commenterToken = localStorage.getItem(`pact_comment_token_${comment.id}`);
-  const canEdit = !!commenterToken;
-  const canDelete = !!commenterToken || !!creator_token;
   const quote = comment.anchor?.includes('#') ? comment.anchor.split('#').slice(1).join('#') : null;
 
   async function save() {
-    if (!editBody.trim() || !commenterToken) return;
+    if (!editBody.trim()) return;
     setSaving(true);
     try {
-      await api.updateComment(series_id, comment.id, editBody.trim(), commenterToken);
+      await api.updateComment(series_id, comment.id, editBody.trim());
       onUpdate(comment.id, editBody.trim());
       setEditing(false);
     } finally {
@@ -195,7 +189,7 @@ export function CommentRow({
         )}
       </div>
       <div className="flex flex-col gap-1 mt-1">
-        {creator_token && !comment.resolved && onResolve && (
+        {!comment.resolved && onResolve && (
           <button
             onClick={() => onResolve(comment.id)}
             className="text-xs transition-colors"
@@ -207,7 +201,7 @@ export function CommentRow({
             ✓
           </button>
         )}
-        {canEdit && !editing && !comment.resolved && (
+        {!editing && !comment.resolved && (
           <button
             onClick={() => setEditing(true)}
             className="text-xs transition-colors"
@@ -219,18 +213,16 @@ export function CommentRow({
             ✎
           </button>
         )}
-        {canDelete && (
-          <button
-            onClick={() => onDelete(comment.id)}
-            className="text-xs transition-colors"
-            style={{ color: 'var(--text-tertiary)' }}
-            onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--error-fg)')}
-            onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-tertiary)')}
-            title="Delete comment"
-          >
-            ✕
-          </button>
-        )}
+        <button
+          onClick={() => onDelete(comment.id)}
+          className="text-xs transition-colors"
+          style={{ color: 'var(--text-tertiary)' }}
+          onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--error-fg)')}
+          onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-tertiary)')}
+          title="Delete comment"
+        >
+          ✕
+        </button>
       </div>
     </div>
   );

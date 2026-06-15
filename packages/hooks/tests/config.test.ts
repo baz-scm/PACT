@@ -70,7 +70,7 @@ describe('config', () => {
   });
 
   it('writeState and readState round-trip', () => {
-    const state = { series_id: 'plan-123', series_key: 'my-series-key', creator_token: 'tok-abc', share_url: 'http://localhost:3000/viewer/xyz' };
+    const state = { series_id: 'plan-123', series_key: 'my-series-key', share_url: 'http://localhost:3000/viewer/xyz' };
     writeState('my-series-key', state, tmpDir);
     const result = readState('my-series-key', tmpDir);
     expect(result).toEqual(state);

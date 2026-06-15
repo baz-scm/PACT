@@ -8,9 +8,13 @@ function planResponse(result: NonNullable<ReturnType<IStorage['getLatestBySeries
     content: result.version.content,
     author_kind: result.version.author_kind,
     source_tool: result.version.source_tool,
+    model_id: result.version.model_id,
+    input_tokens: result.version.input_tokens,
+    output_tokens: result.version.output_tokens,
     expires_at: result.series.expires_at,
     approved: result.series.approved,
     rejected: result.series.rejected,
+    implemented: result.series.implemented,
     share_token: result.series.share_token,
     created_at: result.version.created_at,
   };
@@ -25,7 +29,7 @@ export function plansRouter(storage: IStorage, plansTtlHours: number): IRouter {
   });
 
   router.post('/', (req, res) => {
-    const { series_key, content, author_kind, source_tool } = req.body ?? {};
+    const { series_key, content, author_kind, source_tool, model_id, input_tokens, output_tokens } = req.body ?? {};
     if (!content || !author_kind || !source_tool) {
       return res.status(400).json({ error: 'content, author_kind, source_tool required' });
     }
@@ -35,6 +39,9 @@ export function plansRouter(storage: IStorage, plansTtlHours: number): IRouter {
       content,
       author_kind,
       source_tool,
+      model_id,
+      input_tokens,
+      output_tokens,
       ttl_hours: plansTtlHours,
     });
 
@@ -45,7 +52,6 @@ export function plansRouter(storage: IStorage, plansTtlHours: number): IRouter {
       share_token: result.series.share_token,
       url: `/viewer/${result.series.share_token}`,
       expires_at: result.series.expires_at,
-      creator_token: result.series.creator_token,
     });
   });
 
@@ -63,33 +69,34 @@ export function plansRouter(storage: IStorage, plansTtlHours: number): IRouter {
   });
 
   router.put('/:series_id', (req, res) => {
-    const { content, creator_token } = req.body ?? {};
-    if (!content || !creator_token) {
-      return res.status(400).json({ error: 'content and creator_token required' });
-    }
-    const result = storage.savePlan(req.params.series_id, content, creator_token);
-    if (!result) return res.status(401).json({ error: 'Unauthorized' });
+    const { content } = req.body ?? {};
+    if (!content) return res.status(400).json({ error: 'content required' });
+    const result = storage.savePlan(req.params.series_id, content);
+    if (!result) return res.status(404).json({ error: 'Not found' });
     return res.json(planResponse(result));
   });
 
   router.post('/:series_id/approve', (req, res) => {
-    const { creator_token = '' } = req.body ?? {};
-    const ok = storage.approvePlan(req.params.series_id, creator_token);
-    if (!ok) return res.status(401).json({ error: 'Unauthorized' });
+    const ok = storage.approvePlan(req.params.series_id);
+    if (!ok) return res.status(404).json({ error: 'Not found' });
     return res.json({ approved: true });
   });
 
   router.post('/:series_id/reject', (req, res) => {
-    const { creator_token = '' } = req.body ?? {};
-    const ok = storage.rejectPlan(req.params.series_id, creator_token);
-    if (!ok) return res.status(401).json({ error: 'Unauthorized' });
+    const ok = storage.rejectPlan(req.params.series_id);
+    if (!ok) return res.status(404).json({ error: 'Not found' });
     return res.json({ rejected: true });
   });
 
+  router.post('/:series_id/implement', (req, res) => {
+    const ok = storage.implementPlan(req.params.series_id);
+    if (!ok) return res.status(404).json({ error: 'Not found' });
+    return res.json({ implemented: true });
+  });
+
   router.delete('/:series_id', (req, res) => {
-    const { creator_token = '' } = req.body ?? {};
-    const ok = storage.delistPlan(req.params.series_id, creator_token);
-    if (!ok) return res.status(401).json({ error: 'Unauthorized' });
+    const ok = storage.delistPlan(req.params.series_id);
+    if (!ok) return res.status(404).json({ error: 'Not found' });
     return res.json({ delisted: true });
   });
 

@@ -7,9 +7,9 @@ export interface PlanSeries {
   share_token: string;
   expires_at: Date;
   delisted: boolean;
-  creator_token: string;
   approved: boolean;
   rejected: boolean;
+  implemented: boolean;
   created_at: Date;
 }
 
@@ -20,6 +20,9 @@ export interface PlanVersion {
   content_hash: string;
   author_kind: AuthorKind;
   source_tool: SourceTool;
+  model_id: string | null;
+  input_tokens: number | null;
+  output_tokens: number | null;
   created_at: Date;
 }
 
@@ -29,7 +32,6 @@ export interface Comment {
   body: string;
   ip_hash: string;
   anchor: string | null;
-  commenter_token: string | null;
   resolved: boolean;
   created_at: Date;
 }
@@ -39,6 +41,9 @@ export interface CreatePlanParams {
   content: string;
   author_kind: AuthorKind;
   source_tool: SourceTool;
+  model_id?: string;
+  input_tokens?: number;
+  output_tokens?: number;
   ttl_hours?: number;
 }
 
@@ -57,14 +62,15 @@ export interface IStorage {
   getLatestBySeriesKey(series_key: string): PlanResult | null;
   getLatestBySeriesId(series_id: string): PlanResult | null;
   getByShareToken(share_token: string): PlanResult | null;
-  savePlan(series_id: string, content: string, creator_token: string): PlanResult | null;
-  approvePlan(series_id: string, creator_token: string): boolean;
-  rejectPlan(series_id: string, creator_token: string): boolean;
-  delistPlan(series_id: string, creator_token: string): boolean;
+  savePlan(series_id: string, content: string): PlanResult | null;
+  approvePlan(series_id: string): boolean;
+  rejectPlan(series_id: string): boolean;
+  implementPlan(series_id: string): boolean;
+  delistPlan(series_id: string): boolean;
   expirePlans(): number;
   addComment(series_id: string, body: string, ip_hash: string, anchor?: string): Comment;
   getComments(series_id: string): Comment[];
-  updateComment(series_id: string, comment_id: string, body: string, token: string): Comment | null;
-  deleteComment(comment_id: string, series_id: string, token: string): boolean;
-  resolveComment(comment_id: string, series_id: string, creator_token: string): boolean;
+  updateComment(series_id: string, comment_id: string, body: string): Comment | null;
+  deleteComment(comment_id: string, series_id: string): boolean;
+  resolveComment(comment_id: string, series_id: string): boolean;
 }

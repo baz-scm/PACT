@@ -193,11 +193,10 @@ async function runGate(input, env, cwd, homeDir, pollIntervalMs, gateSecs) {
   const config = loadConfig(cwd, homeDir);
   if (gateSecs !== void 0) config.gate_timeout_seconds = gateSecs;
   const result = await pollUntilApproved(state.series_id, config, pollIntervalMs);
-  const deny = (additionalContext) => process.stdout.write(JSON.stringify({
+  const deny = (message) => process.stdout.write(JSON.stringify({
     hookSpecificOutput: {
       hookEventName: "PermissionRequest",
-      decision: { behavior: "deny" },
-      additionalContext
+      decision: { behavior: "deny", message }
     }
   }));
   if (result.approved) {

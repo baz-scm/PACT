@@ -369,6 +369,22 @@ tasks:
     depends_on: [hooks-install]
     status: done
 
+  - id: plan-implemented
+    title: Implemented status + list filter
+    description: |
+      Mark a plan as implemented after it's been acted on.
+      Server: add implemented boolean to plan_series schema (migration).
+      IStorage: implementPlan(series_id, creator_token): boolean.
+      SqliteStorage: implement following approvePlan pattern.
+      API: POST /api/plans/:series_id/implement (creator_token required).
+      planResponse: include implemented field.
+      listAll: sort by plan_versions.created_at DESC (last updated).
+      Client api.ts: add implementPlan() wrapper.
+      PlanViewer: "Mark as Implemented" button (creator only, visible after approval).
+      Landing.tsx: "Implemented" badge + toggle to hide/show implemented plans (default: hidden).
+    depends_on: [gate-timeout-and-expiry]
+    status: done
+
   - id: comment-labels
     title: Conventional Comments labels on comments
     description: |

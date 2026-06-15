@@ -38,7 +38,7 @@ describe('cc-nudge', () => {
   });
 
   it('returns null for long prompt when state exists', () => {
-    writeState('existing:/proj:main', { series_id: 'p1', creator_token: 'tok', share_url: 'http://x' }, tmpDir);
+    writeState('existing:/proj:main', { series_id: 'p1', share_url: 'http://x' }, tmpDir);
     const result = runNudge(
       JSON.stringify({ prompt: 'x'.repeat(201) }),
       { CLAUDE_SESSION_ID: 'existing', PWD: '/proj', GIT_BRANCH: 'main' },

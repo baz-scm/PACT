@@ -15,7 +15,7 @@ function exitPlanModeEnvelope(plan: string) {
 function mockPostResponse(overrides = {}) {
   return {
     ok: true,
-    json: async () => ({ series_id: 'plan-1', creator_token: 'tok-1', share_token: 'share-abc', ...overrides }),
+    json: async () => ({ series_id: 'plan-1', share_token: 'share-abc', ...overrides }),
   };
 }
 
@@ -72,12 +72,11 @@ describe('cc-capture', () => {
     const state = readState('sess1:/project:main', tmpDir);
     expect(state).not.toBeNull();
     expect(state?.series_id).toBe('plan-1');
-    expect(state?.creator_token).toBe('tok-1');
     expect(state?.share_url).toBe('http://localhost:3000/viewer/share-abc');
   });
 
   it('sends series_key when plan is similar to previous', async () => {
-    writeState('sess1:/project:main', { series_id: 'old-series', series_key: 'stored-series-key', creator_token: 'tok-old', share_url: 'http://localhost:3000/viewer/old' }, tmpDir);
+    writeState('sess1:/project:main', { series_id: 'old-series', series_key: 'stored-series-key', share_url: 'http://localhost:3000/viewer/old' }, tmpDir);
 
     const similarPlan = PLAN_CONTENT + '\nStep 4: monitor results';
     mockFetch
@@ -100,7 +99,7 @@ describe('cc-capture', () => {
   });
 
   it('sends fresh uuid series_key when plan is dramatically different', async () => {
-    writeState('sess1:/project:main', { series_id: 'old-series', series_key: 'stored-series-key', creator_token: 'tok-old', share_url: 'http://localhost:3000/viewer/old' }, tmpDir);
+    writeState('sess1:/project:main', { series_id: 'old-series', series_key: 'stored-series-key', share_url: 'http://localhost:3000/viewer/old' }, tmpDir);
 
     mockFetch
       .mockResolvedValueOnce({ ok: true, json: async () => ({ content: PLAN_CONTENT }) })
@@ -116,7 +115,7 @@ describe('cc-capture', () => {
   });
 
   it('stores new series_key in state after split', async () => {
-    writeState('sess1:/project:main', { series_id: 'old-series', series_key: 'stored-series-key', creator_token: 'tok-old', share_url: 'http://localhost:3000/viewer/old' }, tmpDir);
+    writeState('sess1:/project:main', { series_id: 'old-series', series_key: 'stored-series-key', share_url: 'http://localhost:3000/viewer/old' }, tmpDir);
 
     mockFetch
       .mockResolvedValueOnce({ ok: true, json: async () => ({ content: PLAN_CONTENT }) })
@@ -131,7 +130,7 @@ describe('cc-capture', () => {
   });
 
   it('sends series_key when server fetch fails (safe fallback)', async () => {
-    writeState('sess1:/project:main', { series_id: 'old-series', series_key: 'stored-series-key', creator_token: 'tok-old', share_url: 'http://localhost:3000/viewer/old' }, tmpDir);
+    writeState('sess1:/project:main', { series_id: 'old-series', series_key: 'stored-series-key', share_url: 'http://localhost:3000/viewer/old' }, tmpDir);
 
     mockFetch
       .mockResolvedValueOnce({ ok: false })

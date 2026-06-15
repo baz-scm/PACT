@@ -41,31 +41,26 @@ export function commentsRouter(storage: IStorage): IRouter {
 
   router.patch('/:comment_id', (req, res) => {
     const { series_id, comment_id } = req.params as { series_id: string; comment_id: string };
-    const { body, token } = req.body ?? {};
+    const { body } = req.body ?? {};
     if (!body || typeof body !== 'string' || body.trim() === '') {
       return res.status(400).json({ error: 'body required' });
     }
-    if (!token) return res.status(400).json({ error: 'token required' });
-    const updated = storage.updateComment(series_id, comment_id, body.trim(), token);
-    if (!updated) return res.status(401).json({ error: 'Unauthorized' });
+    const updated = storage.updateComment(series_id, comment_id, body.trim());
+    if (!updated) return res.status(404).json({ error: 'Not found' });
     return res.json(updated);
   });
 
   router.post('/:comment_id/resolve', (req, res) => {
     const { series_id, comment_id } = req.params as { series_id: string; comment_id: string };
-    const { creator_token } = req.body ?? {};
-    if (!creator_token) return res.status(400).json({ error: 'creator_token required' });
-    const ok = storage.resolveComment(comment_id, series_id, creator_token);
-    if (!ok) return res.status(401).json({ error: 'Unauthorized' });
+    const ok = storage.resolveComment(comment_id, series_id);
+    if (!ok) return res.status(404).json({ error: 'Not found' });
     return res.json({ resolved: true });
   });
 
   router.delete('/:comment_id', (req, res) => {
     const { series_id, comment_id } = req.params as { series_id: string; comment_id: string };
-    const { token } = req.body ?? {};
-    if (!token) return res.status(400).json({ error: 'token required' });
-    const ok = storage.deleteComment(comment_id, series_id, token);
-    if (!ok) return res.status(401).json({ error: 'Unauthorized' });
+    const ok = storage.deleteComment(comment_id, series_id);
+    if (!ok) return res.status(404).json({ error: 'Not found' });
     return res.json({ deleted: true });
   });
 

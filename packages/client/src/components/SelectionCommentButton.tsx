@@ -20,7 +20,7 @@ function getPos(container: HTMLElement): Pos | null {
 
   function findBlockAnchor(n: Node): string | null {
     const el = (n.nodeType === 3 ? n.parentElement : n) as HTMLElement | null;
-    return el?.closest('[data-pact-anchor]')?.getAttribute('data-pact-anchor') ?? null;
+    return el?.closest('[data-block-id]')?.getAttribute('data-block-id') ?? null;
   }
   const startAnchor = findBlockAnchor(range.startContainer);
   const endAnchor = findBlockAnchor(range.endContainer);

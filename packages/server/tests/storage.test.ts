@@ -25,7 +25,6 @@ describe('SqliteStorage', () => {
       expect(result.series.id).toBeTruthy();
       expect(result.series.series_key).toBe(base.series_key);
       expect(result.series.share_token).toBeTruthy();
-      expect(result.series.creator_token).toBeTruthy();
       expect(result.series.approved).toBe(false);
       expect(result.series.delisted).toBe(false);
       expect(result.version.content).toBe(base.content);
@@ -37,7 +36,6 @@ describe('SqliteStorage', () => {
       const before = Date.now();
       const result = storage.createPlan(base);
       const exp = result.series.expires_at.getTime();
-      // default is 100 years when no TTL provided
       expect(exp).toBeGreaterThan(before + 365 * 24 * 3600 * 1000);
     });
 
@@ -46,6 +44,14 @@ describe('SqliteStorage', () => {
       const second = storage.createPlan(base);
       expect(second.deduped).toBe(true);
       expect(second.version.id).toBe(first.version.id);
+    });
+
+    it('resets approved flag on dedup so gate always waits for fresh approval', () => {
+      const { series } = storage.createPlan(base);
+      storage.approvePlan(series.id);
+      const second = storage.createPlan(base);
+      expect(second.deduped).toBe(true);
+      expect(second.series.approved).toBe(false);
     });
 
     it('overwrites version row on same series_key with different content', () => {
@@ -90,15 +96,9 @@ describe('SqliteStorage', () => {
   });
 
   describe('savePlan', () => {
-    it('returns null when creator_token is wrong', () => {
-      const { series } = storage.createPlan(base);
-      const result = storage.savePlan(series.id, '# New', 'wrong-token');
-      expect(result).toBeNull();
-    });
-
     it('overwrites content in place', () => {
       const { series } = storage.createPlan(base);
-      const saved = storage.savePlan(series.id, '# Edited', series.creator_token);
+      const saved = storage.savePlan(series.id, '# Edited');
       expect(saved).not.toBeNull();
       expect(saved!.version.content).toBe('# Edited');
       expect(saved!.version.author_kind).toBe('human');
@@ -106,35 +106,25 @@ describe('SqliteStorage', () => {
 
     it('deduplicates on same content', () => {
       const { series, version } = storage.createPlan(base);
-      const saved = storage.savePlan(series.id, base.content, series.creator_token);
+      const saved = storage.savePlan(series.id, base.content);
       expect(saved!.deduped).toBe(true);
       expect(saved!.version.id).toBe(version.id);
     });
   });
 
   describe('approvePlan', () => {
-    it('returns false with wrong token', () => {
-      const { series } = storage.createPlan(base);
-      expect(storage.approvePlan(series.id, 'bad')).toBe(false);
-    });
-
     it('sets approved flag', () => {
       const { series } = storage.createPlan(base);
-      expect(storage.approvePlan(series.id, series.creator_token)).toBe(true);
+      expect(storage.approvePlan(series.id)).toBe(true);
       const result = storage.getLatestBySeriesId(series.id);
       expect(result!.series.approved).toBe(true);
     });
   });
 
   describe('delistPlan', () => {
-    it('returns false with wrong token', () => {
-      const { series } = storage.createPlan(base);
-      expect(storage.delistPlan(series.id, 'bad')).toBe(false);
-    });
-
     it('sets delisted flag, making series invisible', () => {
       const { series } = storage.createPlan(base);
-      expect(storage.delistPlan(series.id, series.creator_token)).toBe(true);
+      expect(storage.delistPlan(series.id)).toBe(true);
       expect(storage.getLatestBySeriesId(series.id)).toBeNull();
     });
   });
@@ -142,7 +132,6 @@ describe('SqliteStorage', () => {
   describe('expirePlans', () => {
     it('deletes plans with expires_at in the past', () => {
       const { series } = storage.createPlan(base);
-      // manually backdate expires_at
       storage._setExpiresAt(series.id, new Date(Date.now() - 3600 * 1000));
 
       const deleted = storage.expirePlans();
@@ -167,20 +156,12 @@ describe('SqliteStorage', () => {
       expect(comments[0].body).toBe('Looks good');
     });
 
-    it('deletes comment with valid creator_token', () => {
+    it('deletes a comment', () => {
       const { series } = storage.createPlan(base);
       const comment = storage.addComment(series.id, 'Delete me', 'ip1');
-      const ok = storage.deleteComment(comment.id, series.id, series.creator_token);
+      const ok = storage.deleteComment(comment.id, series.id);
       expect(ok).toBe(true);
       expect(storage.getComments(series.id)).toHaveLength(0);
-    });
-
-    it('refuses to delete comment with wrong token', () => {
-      const { series } = storage.createPlan(base);
-      const comment = storage.addComment(series.id, 'Keep me', 'ip1');
-      const ok = storage.deleteComment(comment.id, series.id, 'bad-token');
-      expect(ok).toBe(false);
-      expect(storage.getComments(series.id)).toHaveLength(1);
     });
 
     it('cascades delete comments when plan is expired', () => {
@@ -188,7 +169,6 @@ describe('SqliteStorage', () => {
       storage.addComment(series.id, 'Will be gone', 'ip1');
       storage._setExpiresAt(series.id, new Date(Date.now() - 3600 * 1000));
       storage.expirePlans();
-      // No error thrown — cascade handled by DB
       expect(storage.getComments(series.id)).toHaveLength(0);
     });
   });

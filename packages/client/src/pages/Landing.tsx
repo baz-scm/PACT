@@ -8,6 +8,8 @@ export function Landing() {
   const navigate = useNavigate();
   const [plans, setPlans] = useState<PlanResponse[]>([]);
   const [loading, setLoading] = useState(true);
+  const [hideImplemented, setHideImplemented] = useState(true);
+  const [hideRejected, setHideRejected] = useState(true);
 
   const fetchPlans = useCallback(async () => {
     try {
@@ -52,9 +54,35 @@ export function Landing() {
           </div>
         ) : (
           <>
-            <h1 className="text-lg font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>Plans</h1>
+            <div className="flex items-center justify-between mb-4">
+              <h1 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>Plans</h1>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setHideRejected((v) => !v)}
+                  className="text-xs px-2 py-1 rounded border transition-colors"
+                  style={{
+                    borderColor: 'var(--border)',
+                    color: hideRejected ? 'var(--text-secondary)' : 'var(--text-primary)',
+                    backgroundColor: hideRejected ? 'transparent' : 'var(--bg-section)',
+                  }}
+                >
+                  {hideRejected ? 'Show rejected' : 'Hide rejected'}
+                </button>
+                <button
+                  onClick={() => setHideImplemented((v) => !v)}
+                  className="text-xs px-2 py-1 rounded border transition-colors"
+                  style={{
+                    borderColor: 'var(--border)',
+                    color: hideImplemented ? 'var(--text-secondary)' : 'var(--text-primary)',
+                    backgroundColor: hideImplemented ? 'transparent' : 'var(--bg-section)',
+                  }}
+                >
+                  {hideImplemented ? 'Show implemented' : 'Hide implemented'}
+                </button>
+              </div>
+            </div>
             <ul className="space-y-2">
-              {plans.map((plan) => {
+              {plans.filter((p) => (!hideImplemented || !p.implemented) && (!hideRejected || !p.rejected)).map((plan) => {
                 const title = plan.content.split('\n')[0].replace(/^#+\s*/, '').trim() || plan.series_id;
                 return (
                   <li
@@ -77,7 +105,9 @@ export function Landing() {
                       </p>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      {plan.approved ? (
+                      {plan.implemented ? (
+                        <Badge bg="var(--bg-section)" fg="var(--text-tertiary)">Implemented</Badge>
+                      ) : plan.approved ? (
                         <Badge bg="var(--success-bg)" fg="var(--success-fg)">Approved</Badge>
                       ) : plan.rejected ? (
                         <Badge bg="var(--error-bg)" fg="var(--error-fg)">Rejected</Badge>

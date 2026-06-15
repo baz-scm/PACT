@@ -33,13 +33,13 @@ describe('cc-gate', () => {
   });
 
   it('ignores non-ExitPlanMode tool', async () => {
-    writeState('sess1:/project:main', { series_id: 'p1', series_key: 'sess1:/project:main', creator_token: 'tok', share_url: 'http://x' }, tmpDir);
+    writeState('sess1:/project:main', { series_id: 'p1', series_key: 'sess1:/project:main', share_url: 'http://x' }, tmpDir);
     await runGate(JSON.stringify({ tool_name: 'Bash', tool_input: {} }), env, tmpDir, tmpDir);
     expect(mockFetch).not.toHaveBeenCalled();
   });
 
   it('writes allow + context to stdout on approval', async () => {
-    writeState('sess1:/project:main', { series_id: 'p1', series_key: 'sess1:/project:main', creator_token: 'tok', share_url: 'http://x' }, tmpDir);
+    writeState('sess1:/project:main', { series_id: 'p1', series_key: 'sess1:/project:main', share_url: 'http://x' }, tmpDir);
     mockFetch
       .mockResolvedValueOnce({ ok: true, json: async () => ({ approved: true, rejected: false, content: '# Approved' }) })
       .mockResolvedValueOnce({ ok: true, json: async () => [] });
@@ -51,20 +51,20 @@ describe('cc-gate', () => {
   });
 
   it('writes block with feedback on rejection', async () => {
-    writeState('sess1:/project:main', { series_id: 'p1', series_key: 'sess1:/project:main', creator_token: 'tok', share_url: 'http://x' }, tmpDir);
+    writeState('sess1:/project:main', { series_id: 'p1', series_key: 'sess1:/project:main', share_url: 'http://x' }, tmpDir);
     mockFetch
       .mockResolvedValueOnce({ ok: true, json: async () => ({ approved: false, rejected: true, content: '# Plan' }) })
       .mockResolvedValueOnce({ ok: true, json: async () => ([{ body: 'too risky', anchor: null, resolved: false }]) });
     await runGate(envelope, env, tmpDir, tmpDir, 50);
     const written = (stdoutSpy.mock.calls.map((c) => c[0]) as string[]).join('');
-    const parsed = JSON.parse(written) as { hookSpecificOutput: { decision: { behavior: string }; additionalContext: string } };
+    const parsed = JSON.parse(written) as { hookSpecificOutput: { decision: { behavior: string; message: string } } };
     expect(parsed.hookSpecificOutput.decision.behavior).toBe('deny');
-    expect(parsed.hookSpecificOutput.additionalContext).toContain('rejected');
-    expect(parsed.hookSpecificOutput.additionalContext).toContain('too risky');
+    expect(parsed.hookSpecificOutput.decision.message).toContain('rejected');
+    expect(parsed.hookSpecificOutput.decision.message).toContain('too risky');
   });
 
   it('writes block with plan content on timeout', async () => {
-    writeState('sess1:/project:main', { series_id: 'p1', series_key: 'sess1:/project:main', creator_token: 'tok', share_url: 'http://x' }, tmpDir);
+    writeState('sess1:/project:main', { series_id: 'p1', series_key: 'sess1:/project:main', share_url: 'http://x' }, tmpDir);
     mockFetch.mockImplementation((url: string) =>
       Promise.resolve({
         ok: true,
@@ -73,9 +73,9 @@ describe('cc-gate', () => {
     );
     await runGate(envelope, env, tmpDir, tmpDir, 30, 0.05);
     const written = (stdoutSpy.mock.calls.map((c) => c[0]) as string[]).join('');
-    const parsed = JSON.parse(written) as { hookSpecificOutput: { decision: { behavior: string }; additionalContext: string } };
+    const parsed = JSON.parse(written) as { hookSpecificOutput: { decision: { behavior: string; message: string } } };
     expect(parsed.hookSpecificOutput.decision.behavior).toBe('deny');
-    expect(parsed.hookSpecificOutput.additionalContext).toContain('not approved');
-    expect(parsed.hookSpecificOutput.additionalContext).toContain('# The Plan');
+    expect(parsed.hookSpecificOutput.decision.message).toContain('not approved');
+    expect(parsed.hookSpecificOutput.decision.message).toContain('# The Plan');
   });
 });

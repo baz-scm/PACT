@@ -25,7 +25,6 @@ describe('POST /api/plans', () => {
     expect(res.body.share_token).toBeTruthy();
     expect(res.body.url).toMatch(/^\/viewer\//);
     expect(res.body.expires_at).toBeTruthy();
-    expect(res.body.creator_token).toBeTruthy();
   });
 
   it('deduplicates same content', async () => {
@@ -98,13 +97,13 @@ describe('GET /api/plans/share/:share_token', () => {
 });
 
 describe('PUT /api/plans/:series_id', () => {
-  it('returns 401 with wrong creator_token', async () => {
+  it('returns 400 with missing content', async () => {
     const { app } = makeApp();
     const created = await request(app).post('/api/plans').send(planBody);
     const res = await request(app)
       .put(`/api/plans/${created.body.series_id}`)
-      .send({ content: '# Edited', creator_token: 'bad' });
-    expect(res.status).toBe(401);
+      .send({});
+    expect(res.status).toBe(400);
   });
 
   it('saves edited content', async () => {
@@ -112,28 +111,18 @@ describe('PUT /api/plans/:series_id', () => {
     const created = await request(app).post('/api/plans').send(planBody);
     const res = await request(app)
       .put(`/api/plans/${created.body.series_id}`)
-      .send({ content: '# Edited by human', creator_token: created.body.creator_token });
+      .send({ content: '# Edited by human' });
     expect(res.status).toBe(200);
     expect(res.body.content).toBe('# Edited by human');
   });
 });
 
 describe('POST /api/plans/:series_id/approve', () => {
-  it('returns 401 with wrong token', async () => {
-    const { app } = makeApp();
-    const created = await request(app).post('/api/plans').send(planBody);
-    const res = await request(app)
-      .post(`/api/plans/${created.body.series_id}/approve`)
-      .send({ creator_token: 'bad' });
-    expect(res.status).toBe(401);
-  });
-
   it('approves plan', async () => {
     const { app } = makeApp();
     const created = await request(app).post('/api/plans').send(planBody);
     const res = await request(app)
-      .post(`/api/plans/${created.body.series_id}/approve`)
-      .send({ creator_token: created.body.creator_token });
+      .post(`/api/plans/${created.body.series_id}/approve`);
     expect(res.status).toBe(200);
     expect(res.body.approved).toBe(true);
   });
@@ -141,51 +130,28 @@ describe('POST /api/plans/:series_id/approve', () => {
   it('approved flag visible on subsequent GET', async () => {
     const { app } = makeApp();
     const created = await request(app).post('/api/plans').send(planBody);
-    await request(app)
-      .post(`/api/plans/${created.body.series_id}/approve`)
-      .send({ creator_token: created.body.creator_token });
+    await request(app).post(`/api/plans/${created.body.series_id}/approve`);
     const res = await request(app).get(`/api/plans/${created.body.series_id}`);
     expect(res.body.approved).toBe(true);
   });
 });
 
 describe('DELETE /api/plans/:series_id', () => {
-  it('returns 401 with wrong token', async () => {
-    const { app } = makeApp();
-    const created = await request(app).post('/api/plans').send(planBody);
-    const res = await request(app)
-      .delete(`/api/plans/${created.body.series_id}`)
-      .send({ creator_token: 'bad' });
-    expect(res.status).toBe(401);
-  });
-
   it('delists plan, making GET return 404', async () => {
     const { app } = makeApp();
     const created = await request(app).post('/api/plans').send(planBody);
-    await request(app)
-      .delete(`/api/plans/${created.body.series_id}`)
-      .send({ creator_token: created.body.creator_token });
+    await request(app).delete(`/api/plans/${created.body.series_id}`);
     const res = await request(app).get(`/api/plans/${created.body.series_id}`);
     expect(res.status).toBe(404);
   });
 });
 
 describe('POST /api/plans/:series_id/reject', () => {
-  it('returns 401 with wrong token', async () => {
-    const { app } = makeApp();
-    const created = await request(app).post('/api/plans').send(planBody);
-    const res = await request(app)
-      .post(`/api/plans/${created.body.series_id}/reject`)
-      .send({ creator_token: 'bad' });
-    expect(res.status).toBe(401);
-  });
-
   it('rejects plan', async () => {
     const { app } = makeApp();
     const created = await request(app).post('/api/plans').send(planBody);
     const res = await request(app)
-      .post(`/api/plans/${created.body.series_id}/reject`)
-      .send({ creator_token: created.body.creator_token });
+      .post(`/api/plans/${created.body.series_id}/reject`);
     expect(res.status).toBe(200);
     expect(res.body.rejected).toBe(true);
   });
@@ -193,9 +159,7 @@ describe('POST /api/plans/:series_id/reject', () => {
   it('rejected flag visible on subsequent GET', async () => {
     const { app } = makeApp();
     const created = await request(app).post('/api/plans').send(planBody);
-    await request(app)
-      .post(`/api/plans/${created.body.series_id}/reject`)
-      .send({ creator_token: created.body.creator_token });
+    await request(app).post(`/api/plans/${created.body.series_id}/reject`);
     const res = await request(app).get(`/api/plans/${created.body.series_id}`);
     expect(res.body.rejected).toBe(true);
   });
@@ -203,12 +167,8 @@ describe('POST /api/plans/:series_id/reject', () => {
   it('approve after reject clears rejected flag', async () => {
     const { app } = makeApp();
     const created = await request(app).post('/api/plans').send(planBody);
-    await request(app)
-      .post(`/api/plans/${created.body.series_id}/reject`)
-      .send({ creator_token: created.body.creator_token });
-    await request(app)
-      .post(`/api/plans/${created.body.series_id}/approve`)
-      .send({ creator_token: created.body.creator_token });
+    await request(app).post(`/api/plans/${created.body.series_id}/reject`);
+    await request(app).post(`/api/plans/${created.body.series_id}/approve`);
     const res = await request(app).get(`/api/plans/${created.body.series_id}`);
     expect(res.body.approved).toBe(true);
     expect(res.body.rejected).toBe(false);
@@ -217,12 +177,8 @@ describe('POST /api/plans/:series_id/reject', () => {
   it('reject after approve clears approved flag', async () => {
     const { app } = makeApp();
     const created = await request(app).post('/api/plans').send(planBody);
-    await request(app)
-      .post(`/api/plans/${created.body.series_id}/approve`)
-      .send({ creator_token: created.body.creator_token });
-    await request(app)
-      .post(`/api/plans/${created.body.series_id}/reject`)
-      .send({ creator_token: created.body.creator_token });
+    await request(app).post(`/api/plans/${created.body.series_id}/approve`);
+    await request(app).post(`/api/plans/${created.body.series_id}/reject`);
     const res = await request(app).get(`/api/plans/${created.body.series_id}`);
     expect(res.body.rejected).toBe(true);
     expect(res.body.approved).toBe(false);

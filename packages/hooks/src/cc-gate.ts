@@ -33,12 +33,11 @@ export async function runGate(
 
   const result = await pollUntilApproved(state.series_id, config, pollIntervalMs);
 
-  const deny = (additionalContext: string) =>
+  const deny = (message: string) =>
     process.stdout.write(JSON.stringify({
       hookSpecificOutput: {
         hookEventName: 'PermissionRequest',
-        decision: { behavior: 'deny' },
-        additionalContext,
+        decision: { behavior: 'deny', message },
       },
     }));
 

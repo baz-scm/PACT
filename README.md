@@ -70,6 +70,10 @@ packages/
   hooks/    Claude Code + Cursor hook scripts
 ```
 
+## Inspiration
+
+PACT was inspired by [Plannotator](https://github.com/backnotprop/plannotator), a browser-based annotation and review tool for AI agent plans. Check it out.
+
 ## License
 
 AGPL-3.0. See [LICENSE](LICENSE).

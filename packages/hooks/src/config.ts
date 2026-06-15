@@ -73,7 +73,6 @@ function stateFilePath(series_key: string, homeDir?: string): string {
 export interface PactState {
   series_id: string;
   series_key: string;
-  creator_token: string;
   share_url: string;
 }
 

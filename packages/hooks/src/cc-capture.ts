@@ -20,11 +20,11 @@ interface PermissionRequestEnvelope {
   tool_input: {
     plan?: string;
   };
+  model?: string;
 }
 
 interface PlanResponse {
   series_id: string;
-  creator_token: string;
   share_token: string;
 }
 
@@ -45,6 +45,8 @@ export async function runCapture(
 
   const plan = envelope.tool_input?.plan ?? '';
   if (!plan.trim()) return;
+
+  const model_id = envelope.model ?? env.CLAUDE_MODEL ?? env.ANTHROPIC_MODEL ?? undefined;
 
   const config = loadConfig(cwd, homeDir);
   if (!config.enabled) return;
@@ -77,6 +79,7 @@ export async function runCapture(
         content: redacted,
         author_kind: 'agent',
         source_tool: 'claude-code',
+        ...(model_id ? { model_id } : {}),
       }),
     });
 
@@ -86,10 +89,9 @@ export async function runCapture(
       writeState(series_key, {
         series_id: data.series_id,
         series_key: postKey,
-        creator_token: data.creator_token,
         share_url,
       }, homeDir);
-      process.stderr.write(`\nPlan captured: ${share_url}#token=${data.creator_token}\n`);
+      process.stderr.write(`\nPlan captured: ${share_url}\n`);
     } else {
       process.stderr.write(`[PACT] Failed to capture plan: ${response.status}\n`);
     }
