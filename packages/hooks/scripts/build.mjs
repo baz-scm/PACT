@@ -11,8 +11,7 @@ const shared = {
 };
 
 await Promise.all([
-  build({ ...shared, entryPoints: ['src/cc-capture.ts'] }),
-  build({ ...shared, entryPoints: ['src/cc-gate.ts'] }),
+  build({ ...shared, entryPoints: ['src/cc-hook.ts'] }),
   build({ ...shared, entryPoints: ['src/cc-nudge.ts'] }),
   build({ ...shared, entryPoints: ['src/cursor-gate.ts'] }),
   build({ ...shared, entryPoints: ['src/install.ts'] }),

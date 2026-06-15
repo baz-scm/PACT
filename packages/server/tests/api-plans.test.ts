@@ -115,6 +115,17 @@ describe('PUT /api/plans/:series_id', () => {
     expect(res.status).toBe(200);
     expect(res.body.content).toBe('# Edited by human');
   });
+
+  it('returns 409 when plan is implemented', async () => {
+    const { app } = makeApp();
+    const created = await request(app).post('/api/plans').send(planBody);
+    await request(app).post(`/api/plans/${created.body.series_id}/approve`);
+    await request(app).post(`/api/plans/${created.body.series_id}/implement`);
+    const res = await request(app)
+      .put(`/api/plans/${created.body.series_id}`)
+      .send({ content: '# Sneaky edit' });
+    expect(res.status).toBe(409);
+  });
 });
 
 describe('POST /api/plans/:series_id/approve', () => {
@@ -144,9 +155,27 @@ describe('DELETE /api/plans/:series_id', () => {
     const res = await request(app).get(`/api/plans/${created.body.series_id}`);
     expect(res.status).toBe(404);
   });
+
+  it('returns 409 when plan is implemented', async () => {
+    const { app } = makeApp();
+    const created = await request(app).post('/api/plans').send(planBody);
+    await request(app).post(`/api/plans/${created.body.series_id}/approve`);
+    await request(app).post(`/api/plans/${created.body.series_id}/implement`);
+    const res = await request(app).delete(`/api/plans/${created.body.series_id}`);
+    expect(res.status).toBe(409);
+  });
 });
 
 describe('POST /api/plans/:series_id/reject', () => {
+  it('returns 409 when plan is implemented', async () => {
+    const { app } = makeApp();
+    const created = await request(app).post('/api/plans').send(planBody);
+    await request(app).post(`/api/plans/${created.body.series_id}/approve`);
+    await request(app).post(`/api/plans/${created.body.series_id}/implement`);
+    const res = await request(app).post(`/api/plans/${created.body.series_id}/reject`);
+    expect(res.status).toBe(409);
+  });
+
   it('rejects plan', async () => {
     const { app } = makeApp();
     const created = await request(app).post('/api/plans').send(planBody);

@@ -71,6 +71,9 @@ export function plansRouter(storage: IStorage, plansTtlHours: number): IRouter {
   router.put('/:series_id', (req, res) => {
     const { content } = req.body ?? {};
     if (!content) return res.status(400).json({ error: 'content required' });
+    const existing = storage.getLatestBySeriesId(req.params.series_id);
+    if (!existing) return res.status(404).json({ error: 'Not found' });
+    if (existing.series.implemented) return res.status(409).json({ error: 'Plan is implemented' });
     const result = storage.savePlan(req.params.series_id, content);
     if (!result) return res.status(404).json({ error: 'Not found' });
     return res.json(planResponse(result));
@@ -83,6 +86,9 @@ export function plansRouter(storage: IStorage, plansTtlHours: number): IRouter {
   });
 
   router.post('/:series_id/reject', (req, res) => {
+    const existing = storage.getLatestBySeriesId(req.params.series_id);
+    if (!existing) return res.status(404).json({ error: 'Not found' });
+    if (existing.series.implemented) return res.status(409).json({ error: 'Plan is implemented' });
     const ok = storage.rejectPlan(req.params.series_id);
     if (!ok) return res.status(404).json({ error: 'Not found' });
     return res.json({ rejected: true });
@@ -95,6 +101,9 @@ export function plansRouter(storage: IStorage, plansTtlHours: number): IRouter {
   });
 
   router.delete('/:series_id', (req, res) => {
+    const existing = storage.getLatestBySeriesId(req.params.series_id);
+    if (!existing) return res.status(404).json({ error: 'Not found' });
+    if (existing.series.implemented) return res.status(409).json({ error: 'Plan is implemented' });
     const ok = storage.delistPlan(req.params.series_id);
     if (!ok) return res.status(404).json({ error: 'Not found' });
     return res.json({ delisted: true });

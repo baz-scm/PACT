@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { api, type PlanResponse } from '../api';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { Footer } from '../components/Footer';
+import { Badge } from '../components/designSystem/Badge';
+import { FilterChip } from '../components/designSystem/FilterChip';
 
 export function Landing() {
   const navigate = useNavigate();
@@ -57,33 +59,27 @@ export function Landing() {
             <div className="flex items-center justify-between mb-4">
               <h1 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>Plans</h1>
               <div className="flex gap-2">
-                <button
-                  onClick={() => setHideRejected((v) => !v)}
-                  className="text-xs px-2 py-1 rounded border transition-colors"
-                  style={{
-                    borderColor: 'var(--border)',
-                    color: hideRejected ? 'var(--text-secondary)' : 'var(--text-primary)',
-                    backgroundColor: hideRejected ? 'transparent' : 'var(--bg-section)',
-                  }}
-                >
+                <FilterChip active={!hideRejected} onClick={() => setHideRejected((v) => !v)}>
                   {hideRejected ? 'Show rejected' : 'Hide rejected'}
-                </button>
-                <button
-                  onClick={() => setHideImplemented((v) => !v)}
-                  className="text-xs px-2 py-1 rounded border transition-colors"
-                  style={{
-                    borderColor: 'var(--border)',
-                    color: hideImplemented ? 'var(--text-secondary)' : 'var(--text-primary)',
-                    backgroundColor: hideImplemented ? 'transparent' : 'var(--bg-section)',
-                  }}
-                >
+                </FilterChip>
+                <FilterChip active={!hideImplemented} onClick={() => setHideImplemented((v) => !v)}>
                   {hideImplemented ? 'Show implemented' : 'Hide implemented'}
-                </button>
+                </FilterChip>
               </div>
             </div>
             <ul className="space-y-2">
               {plans.filter((p) => (!hideImplemented || !p.implemented) && (!hideRejected || !p.rejected)).map((plan) => {
-                const title = plan.content.split('\n')[0].replace(/^#+\s*/, '').trim() || plan.series_id;
+                const GENERIC = new Set(['context', 'overview', 'summary', 'plan', 'background', 'goal', 'goals', 'approach']);
+                const title = (() => {
+                  for (const line of plan.content.split('\n')) {
+                    const t = line.trim();
+                    if (!t) continue;
+                    const text = t.replace(/^#+\s*/, '').trim();
+                    if (/^#+\s/.test(t) && GENERIC.has(text.toLowerCase())) continue;
+                    if (text) return text;
+                  }
+                  return plan.series_id;
+                })();
                 return (
                   <li
                     key={plan.series_id}
@@ -106,13 +102,13 @@ export function Landing() {
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       {plan.implemented ? (
-                        <Badge bg="var(--bg-section)" fg="var(--text-tertiary)">Implemented</Badge>
+                        <Badge variant="implemented" />
                       ) : plan.approved ? (
-                        <Badge bg="var(--success-bg)" fg="var(--success-fg)">Approved</Badge>
+                        <Badge variant="approved" />
                       ) : plan.rejected ? (
-                        <Badge bg="var(--error-bg)" fg="var(--error-fg)">Rejected</Badge>
+                        <Badge variant="rejected" />
                       ) : (
-                        <Badge bg="var(--warn-bg)" fg="var(--warn-fg)">Pending</Badge>
+                        <Badge variant="pending" />
                       )}
                     </div>
                   </li>
@@ -127,13 +123,3 @@ export function Landing() {
   );
 }
 
-function Badge({ bg, fg, children }: { bg: string; fg: string; children: React.ReactNode }) {
-  return (
-    <span
-      className="text-xs font-medium px-2 py-0.5 rounded-full"
-      style={{ backgroundColor: bg, color: fg }}
-    >
-      {children}
-    </span>
-  );
-}

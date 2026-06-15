@@ -275,9 +275,10 @@ export class SqliteStorage implements IStorage {
     return (result.changes as number) > 0;
   }
 
-  /** Test helper — backdates expires_at via Drizzle (same connection). */
+  /** Test helper — backdates expires_at on the raw connection. */
   _setExpiresAt(series_id: string, expires_at: Date): void {
-    this.db.update(planSeries).set({ expires_at }).where(eq(planSeries.id, series_id)).run();
+    // noinspection SqlNoDataSourceInspection,SqlResolve
+    this.client.prepare('UPDATE plan_series SET expires_at = ? WHERE id = ?').run(expires_at.getTime(), series_id);
   }
 
   deleteComment(comment_id: string, series_id: string): boolean {

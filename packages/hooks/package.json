@@ -9,8 +9,7 @@
     "src"
   ],
   "bin": {
-    "pact-capture": "dist/cc-capture.js",
-    "pact-gate": "dist/cc-gate.js",
+    "pact-hook": "dist/cc-hook.js",
     "pact-nudge": "dist/cc-nudge.js",
     "pact-hooks": "dist/install.js"
   },

@@ -9,14 +9,24 @@ import { Footer } from '../components/Footer';
 import { BlockRenderer } from '../components/BlockRenderer';
 import { TableOfContents } from '../components/TableOfContents';
 import { ResizeHandle } from '../components/ResizeHandle';
-import { ShortcutsOverlay } from '../components/ShortcutsOverlay';
 import { useResizablePanel } from '../hooks/useResizablePanel';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import { parseMarkdownToBlocks, computeListIndices } from '../utils/parser';
+import { Badge } from '../components/designSystem/Badge';
+import { Button } from '../components/designSystem/Button';
+import { Toolbar, ToolbarDivider } from '../components/designSystem/Toolbar';
 
 function extractTitle(content: string): string {
-  const firstLine = content.split('\n').find((l) => l.trim());
-  return firstLine?.replace(/^#+\s*/, '').trim() ?? '';
+  const GENERIC = new Set(['context', 'overview', 'summary', 'plan', 'background', 'goal', 'goals', 'approach']);
+  for (const line of content.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    const isHeading = /^#+\s/.test(trimmed);
+    const text = trimmed.replace(/^#+\s*/, '').trim();
+    if (isHeading && GENERIC.has(text.toLowerCase())) continue;
+    if (text) return text;
+  }
+  return '';
 }
 
 function parseBlockAnchor(anchor: string): { startId: string; endId: string; quote: string | null } {
@@ -51,7 +61,6 @@ export function PlanViewer() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [comments, setComments] = useState<Comment[]>([]);
   const [highlightAnchor, setHighlightAnchor] = useState<string | null>(null);
-  const [showShortcuts, setShowShortcuts] = useState(false);
   const proseRef = useRef<HTMLDivElement>(null);
 
   const { width: tocWidth, isCollapsed: tocCollapsed, onDragStart } = useResizablePanel({
@@ -185,7 +194,6 @@ export function PlanViewer() {
       c: focusComment,
       ']': () => navComment(1),
       '[': () => navComment(-1),
-      '?': () => setShowShortcuts(v => !v),
     }), [plan, focusComment, navComment]),
     !editing,
   );
@@ -210,8 +218,6 @@ export function PlanViewer() {
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: 'var(--bg)' }}>
-      {showShortcuts && <ShortcutsOverlay onClose={() => setShowShortcuts(false)} />}
-
       <header
         className="sticky top-0 z-10 flex items-center justify-between px-5 py-3 border-b"
         style={{ backgroundColor: 'var(--bg)', borderColor: 'var(--border)' }}
@@ -226,20 +232,14 @@ export function PlanViewer() {
           ← Back
         </button>
         <div className="flex items-center gap-2">
-          {plan.approved && (
-            <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ backgroundColor: 'var(--success-bg)', color: 'var(--success-fg)' }}>
-              Approved ✓
-            </span>
-          )}
-          {plan.rejected && (
-            <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ backgroundColor: 'var(--error-bg)', color: 'var(--error-fg)' }}>
-              Rejected ✗
-            </span>
-          )}
-          {!plan.approved && !plan.rejected && (
-            <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ backgroundColor: 'var(--warn-bg)', color: 'var(--warn-fg)' }}>
-              Pending
-            </span>
+          {plan.implemented ? (
+            <Badge variant="implemented" />
+          ) : plan.approved ? (
+            <Badge variant="approved" />
+          ) : plan.rejected ? (
+            <Badge variant="rejected" />
+          ) : (
+            <Badge variant="pending" />
           )}
           <ThemeToggle />
         </div>
@@ -290,21 +290,12 @@ export function PlanViewer() {
                   }}
                 />
                 <div className="flex gap-2 mt-2">
-                  <button
-                    onClick={save}
-                    disabled={saving}
-                    className="px-4 py-1.5 text-sm font-medium rounded-md text-white disabled:opacity-50"
-                    style={{ backgroundColor: 'var(--action-primary)' }}
-                  >
+                  <Button variant="primary" onClick={save} disabled={saving}>
                     {saving ? 'Saving…' : 'Save'}
-                  </button>
-                  <button
-                    onClick={() => setEditing(false)}
-                    className="px-4 py-1.5 text-sm rounded-md border"
-                    style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)' }}
-                  >
+                  </Button>
+                  <Button variant="ghost" onClick={() => setEditing(false)}>
                     Cancel
-                  </button>
+                  </Button>
                 </div>
               </div>
             ) : (
@@ -366,101 +357,51 @@ export function PlanViewer() {
       </main>
 
       {!editing && (
-        <div
-          className="fixed bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-2 px-4 py-2.5 rounded-xl shadow-lg border z-20"
-          style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border)' }}
-        >
+        <Toolbar>
           {!plan.approved && !plan.rejected && (
             <>
-              <button
-                onClick={approve}
-                disabled={approving}
-                className="px-4 py-1.5 text-sm font-medium rounded-lg text-white transition-colors disabled:opacity-50"
-                style={{ backgroundColor: 'var(--success-fg)' }}
-              >
+              <Button variant="success" onClick={approve} disabled={approving}>
                 {approving ? 'Approving…' : '✓ Approve'}
-              </button>
-              <button
-                onClick={reject}
-                disabled={rejecting}
-                className="px-4 py-1.5 text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
-                style={{ backgroundColor: 'var(--error-bg)', color: 'var(--error-fg)' }}
-              >
+              </Button>
+              <Button variant="danger" onClick={reject} disabled={rejecting}>
                 {rejecting ? 'Rejecting…' : '✗ Reject'}
-              </button>
-              <div className="w-px h-5 mx-1" style={{ backgroundColor: 'var(--border)' }} />
+              </Button>
+              <ToolbarDivider />
             </>
           )}
-          {(plan.approved || plan.rejected) && (
+          {!plan.implemented && (plan.approved || plan.rejected) && (
             <>
-              <button
-                onClick={plan.approved ? reject : approve}
-                disabled={approving || rejecting}
-                className="px-3 py-1.5 text-xs rounded-lg border transition-colors disabled:opacity-50"
-                style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)', backgroundColor: 'transparent' }}
-              >
+              <Button variant="ghost" onClick={plan.approved ? reject : approve} disabled={approving || rejecting}>
                 {plan.approved ? '✗ Reject' : '✓ Approve'}
-              </button>
-              <div className="w-px h-5 mx-1" style={{ backgroundColor: 'var(--border)' }} />
+              </Button>
+              <ToolbarDivider />
             </>
           )}
           {plan.approved && !plan.implemented && (
             <>
-              <button
-                onClick={implement}
-                disabled={implementing}
-                className="px-3 py-1.5 text-xs rounded-lg border transition-colors disabled:opacity-50"
-                style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)', backgroundColor: 'transparent' }}
-              >
+              <Button variant="ghost" onClick={implement} disabled={implementing}>
                 {implementing ? 'Marking…' : '⚑ Mark as Implemented'}
-              </button>
-              <div className="w-px h-5 mx-1" style={{ backgroundColor: 'var(--border)' }} />
+              </Button>
+              <ToolbarDivider />
             </>
           )}
-          <button
-            onClick={startEdit}
-            className="px-3 py-1.5 text-sm rounded-lg border transition-colors"
-            style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)', backgroundColor: 'transparent' }}
-          >
-            Edit
-          </button>
-          {confirmDelete ? (
+          {!plan.implemented && (
             <>
-              <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>Delete?</span>
-              <button
-                onClick={delist}
-                disabled={delisting}
-                className="px-3 py-1.5 text-xs font-medium rounded-lg transition-colors disabled:opacity-50"
-                style={{ backgroundColor: 'var(--error-bg)', color: 'var(--error-fg)' }}
-              >
-                {delisting ? '…' : 'Yes, delete'}
-              </button>
-              <button
-                onClick={() => setConfirmDelete(false)}
-                className="px-2 py-1.5 text-xs rounded-lg transition-colors"
-                style={{ color: 'var(--text-tertiary)' }}
-              >
-                Cancel
-              </button>
+              <Button variant="ghost" onClick={startEdit}>Edit</Button>
+              {confirmDelete ? (
+                <>
+                  <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>Delete?</span>
+                  <Button variant="danger" onClick={delist} disabled={delisting}>
+                    {delisting ? '…' : 'Yes, delete'}
+                  </Button>
+                  <Button variant="ghost" onClick={() => setConfirmDelete(false)}>Cancel</Button>
+                </>
+              ) : (
+                <Button variant="ghost-danger" onClick={() => setConfirmDelete(true)}>Delete</Button>
+              )}
             </>
-          ) : (
-            <button
-              onClick={() => setConfirmDelete(true)}
-              className="px-3 py-1.5 text-sm rounded-lg transition-colors"
-              style={{ color: 'var(--error-fg)', backgroundColor: 'transparent' }}
-            >
-              Delete
-            </button>
           )}
-          <button
-            onClick={() => setShowShortcuts(true)}
-            className="px-2 py-1.5 text-xs rounded-lg border transition-colors"
-            style={{ borderColor: 'var(--border)', color: 'var(--text-tertiary)' }}
-            title="Keyboard shortcuts (?)"
-          >
-            ?
-          </button>
-        </div>
+        </Toolbar>
       )}
     </div>
   );
