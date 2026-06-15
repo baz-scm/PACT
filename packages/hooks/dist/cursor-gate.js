@@ -143,15 +143,15 @@ async function pollUntilApproved(series_id, config, pollIntervalMs = 3e3) {
       const response = await fetch(`${config.server}/api/plans/${series_id}`);
       if (response.ok) {
         const data = await response.json();
-        if (data.approved) {
+        if (data.status === "approved") {
           const comments = await fetchComments(config.server, series_id);
           const content = weaveComments(data.content, comments);
           return { approved: true, content };
         }
-        if (data.rejected) {
+        if (data.status === "building_consensus") {
           const comments = await fetchComments(config.server, series_id);
           const content = weaveComments(data.content, comments);
-          return { approved: false, reason: "rejected", content };
+          return { approved: false, reason: "building_consensus", content };
         }
       }
     } catch {

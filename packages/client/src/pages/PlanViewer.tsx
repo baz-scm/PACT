@@ -55,7 +55,7 @@ export function PlanViewer() {
   const [draft, setDraft] = useState('');
   const [saving, setSaving] = useState(false);
   const [approving, setApproving] = useState(false);
-  const [rejecting, setRejecting] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [implementing, setImplementing] = useState(false);
   const [delisting, setDelisting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -117,17 +117,17 @@ export function PlanViewer() {
     setApproving(true);
     try {
       await api.approvePlan(plan.series_id);
-      setPlan({ ...plan, approved: true, rejected: false });
+      setPlan({ ...plan, status: 'approved' });
     } finally { setApproving(false); }
   }
 
-  async function reject() {
+  async function submitReview() {
     if (!plan) return;
-    setRejecting(true);
+    setSubmitting(true);
     try {
-      await api.rejectPlan(plan.series_id);
-      setPlan({ ...plan, rejected: true, approved: false });
-    } finally { setRejecting(false); }
+      await api.submitReview(plan.series_id);
+      setPlan({ ...plan, status: 'building_consensus' });
+    } finally { setSubmitting(false); }
   }
 
   async function implement() {
@@ -135,7 +135,7 @@ export function PlanViewer() {
     setImplementing(true);
     try {
       await api.implementPlan(plan.series_id);
-      setPlan({ ...plan, implemented: true });
+      setPlan({ ...plan, status: 'implemented' });
     } finally { setImplementing(false); }
   }
 
@@ -189,8 +189,8 @@ export function PlanViewer() {
 
   useKeyboardShortcuts(
     useMemo(() => ({
-      a: () => { if (plan && !plan.approved && !plan.rejected) approve(); },
-      r: () => { if (plan && !plan.approved && !plan.rejected) reject(); },
+      a: () => { if (plan && plan.status === 'pending') approve(); },
+      r: () => { if (plan && plan.status === 'pending') submitReview(); },
       c: focusComment,
       ']': () => navComment(1),
       '[': () => navComment(-1),
@@ -232,15 +232,7 @@ export function PlanViewer() {
           ← Back
         </button>
         <div className="flex items-center gap-2">
-          {plan.implemented ? (
-            <Badge variant="implemented" />
-          ) : plan.approved ? (
-            <Badge variant="approved" />
-          ) : plan.rejected ? (
-            <Badge variant="rejected" />
-          ) : (
-            <Badge variant="pending" />
-          )}
+          <Badge variant={plan.status} />
           <ThemeToggle />
         </div>
       </header>
@@ -356,51 +348,53 @@ export function PlanViewer() {
         </div>
       </main>
 
-      {!editing && (
+      {!editing && plan.status !== 'implemented' && (
         <Toolbar>
-          {!plan.approved && !plan.rejected && (
+          {plan.status === 'pending' && (
             <>
+              <span title={comments.length === 0 ? 'Add at least one comment before submitting a review' : undefined}>
+                <Button variant="primary" onClick={submitReview} disabled={submitting || comments.length === 0}>
+                  {submitting ? 'Submitting…' : 'Submit Review'}
+                </Button>
+              </span>
               <Button variant="success" onClick={approve} disabled={approving}>
-                {approving ? 'Approving…' : '✓ Approve'}
-              </Button>
-              <Button variant="danger" onClick={reject} disabled={rejecting}>
-                {rejecting ? 'Rejecting…' : '✗ Reject'}
+                {approving ? 'Approving…' : 'Approve'}
               </Button>
               <ToolbarDivider />
             </>
           )}
-          {!plan.implemented && (plan.approved || plan.rejected) && (
+          {(plan.status === 'approved' || plan.status === 'building_consensus') && (
             <>
-              <Button variant="ghost" onClick={plan.approved ? reject : approve} disabled={approving || rejecting}>
-                {plan.approved ? '✗ Reject' : '✓ Approve'}
+              <span title={plan.status === 'approved' && comments.length === 0 ? 'Add at least one comment before submitting a review' : undefined}>
+                <Button variant={plan.status === 'approved' ? 'primary' : 'success'} onClick={plan.status === 'approved' ? submitReview : approve} disabled={approving || submitting || (plan.status === 'approved' && comments.length === 0)}>
+                  {plan.status === 'approved' ? 'Submit Review' : 'Approve'}
+                </Button>
+              </span>
+              <ToolbarDivider />
+            </>
+          )}
+          {plan.status === 'approved' && (
+            <>
+              <Button variant="success" onClick={implement} disabled={implementing}>
+                {implementing ? 'Marking…' : 'Mark as Implemented'}
               </Button>
               <ToolbarDivider />
             </>
           )}
-          {plan.approved && !plan.implemented && (
-            <>
-              <Button variant="ghost" onClick={implement} disabled={implementing}>
-                {implementing ? 'Marking…' : '⚑ Mark as Implemented'}
-              </Button>
-              <ToolbarDivider />
-            </>
-          )}
-          {!plan.implemented && (
-            <>
-              <Button variant="ghost" onClick={startEdit}>Edit</Button>
-              {confirmDelete ? (
-                <>
-                  <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>Delete?</span>
-                  <Button variant="danger" onClick={delist} disabled={delisting}>
-                    {delisting ? '…' : 'Yes, delete'}
-                  </Button>
-                  <Button variant="ghost" onClick={() => setConfirmDelete(false)}>Cancel</Button>
-                </>
-              ) : (
-                <Button variant="ghost-danger" onClick={() => setConfirmDelete(true)}>Delete</Button>
-              )}
-            </>
-          )}
+          <>
+            <Button variant="ghost" onClick={startEdit}>Edit</Button>
+            {confirmDelete ? (
+              <>
+                <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>Delete?</span>
+                <Button variant="danger" onClick={delist} disabled={delisting}>
+                  {delisting ? '…' : 'Yes, delete'}
+                </Button>
+                <Button variant="ghost" onClick={() => setConfirmDelete(false)}>Cancel</Button>
+              </>
+            ) : (
+              <Button variant="ghost-danger" onClick={() => setConfirmDelete(true)}>Delete</Button>
+            )}
+          </>
         </Toolbar>
       )}
     </div>

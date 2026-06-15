@@ -76,7 +76,7 @@ describe('GET /api/plans/:series_id', () => {
     const res = await request(app).get(`/api/plans/${created.body.series_id}`);
     expect(res.status).toBe(200);
     expect(res.body.content).toBe(planBody.content);
-    expect(res.body.approved).toBe(false);
+    expect(res.body.status).toBe('pending');
   });
 });
 
@@ -135,7 +135,7 @@ describe('POST /api/plans/:series_id/approve', () => {
     const res = await request(app)
       .post(`/api/plans/${created.body.series_id}/approve`);
     expect(res.status).toBe(200);
-    expect(res.body.approved).toBe(true);
+    expect(res.body.status).toBe('approved');
   });
 
   it('approved flag visible on subsequent GET', async () => {
@@ -143,7 +143,7 @@ describe('POST /api/plans/:series_id/approve', () => {
     const created = await request(app).post('/api/plans').send(planBody);
     await request(app).post(`/api/plans/${created.body.series_id}/approve`);
     const res = await request(app).get(`/api/plans/${created.body.series_id}`);
-    expect(res.body.approved).toBe(true);
+    expect(res.body.status).toBe('approved');
   });
 });
 
@@ -166,51 +166,49 @@ describe('DELETE /api/plans/:series_id', () => {
   });
 });
 
-describe('POST /api/plans/:series_id/reject', () => {
+describe('POST /api/plans/:series_id/submit-review', () => {
   it('returns 409 when plan is implemented', async () => {
     const { app } = makeApp();
     const created = await request(app).post('/api/plans').send(planBody);
     await request(app).post(`/api/plans/${created.body.series_id}/approve`);
     await request(app).post(`/api/plans/${created.body.series_id}/implement`);
-    const res = await request(app).post(`/api/plans/${created.body.series_id}/reject`);
+    const res = await request(app).post(`/api/plans/${created.body.series_id}/submit-review`);
     expect(res.status).toBe(409);
   });
 
-  it('rejects plan', async () => {
+  it('submits plan for review', async () => {
     const { app } = makeApp();
     const created = await request(app).post('/api/plans').send(planBody);
     const res = await request(app)
-      .post(`/api/plans/${created.body.series_id}/reject`);
+      .post(`/api/plans/${created.body.series_id}/submit-review`);
     expect(res.status).toBe(200);
-    expect(res.body.rejected).toBe(true);
+    expect(res.body.status).toBe('building_consensus');
   });
 
-  it('rejected flag visible on subsequent GET', async () => {
+  it('building_consensus flag visible on subsequent GET', async () => {
     const { app } = makeApp();
     const created = await request(app).post('/api/plans').send(planBody);
-    await request(app).post(`/api/plans/${created.body.series_id}/reject`);
+    await request(app).post(`/api/plans/${created.body.series_id}/submit-review`);
     const res = await request(app).get(`/api/plans/${created.body.series_id}`);
-    expect(res.body.rejected).toBe(true);
+    expect(res.body.status).toBe('building_consensus');
   });
 
-  it('approve after reject clears rejected flag', async () => {
+  it('approve after submit-review clears building_consensus flag', async () => {
     const { app } = makeApp();
     const created = await request(app).post('/api/plans').send(planBody);
-    await request(app).post(`/api/plans/${created.body.series_id}/reject`);
+    await request(app).post(`/api/plans/${created.body.series_id}/submit-review`);
     await request(app).post(`/api/plans/${created.body.series_id}/approve`);
     const res = await request(app).get(`/api/plans/${created.body.series_id}`);
-    expect(res.body.approved).toBe(true);
-    expect(res.body.rejected).toBe(false);
+    expect(res.body.status).toBe('approved');
   });
 
-  it('reject after approve clears approved flag', async () => {
+  it('submit-review after approve clears approved flag', async () => {
     const { app } = makeApp();
     const created = await request(app).post('/api/plans').send(planBody);
     await request(app).post(`/api/plans/${created.body.series_id}/approve`);
-    await request(app).post(`/api/plans/${created.body.series_id}/reject`);
+    await request(app).post(`/api/plans/${created.body.series_id}/submit-review`);
     const res = await request(app).get(`/api/plans/${created.body.series_id}`);
-    expect(res.body.rejected).toBe(true);
-    expect(res.body.approved).toBe(false);
+    expect(res.body.status).toBe('building_consensus');
   });
 });
 

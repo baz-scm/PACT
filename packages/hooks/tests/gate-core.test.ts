@@ -32,7 +32,7 @@ describe('pollUntilApproved', () => {
 
   it('returns approved content on first poll (no comments)', async () => {
     mockFetch
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ approved: true, content: '# My plan' }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ status: 'approved', content: '# My plan' }) })
       .mockResolvedValueOnce(noComments);
     const result = await pollUntilApproved('series-1', baseConfig, 50);
     expect(result).toEqual({ approved: true, content: '# My plan' });
@@ -42,8 +42,8 @@ describe('pollUntilApproved', () => {
 
   it('polls until approved on second call', async () => {
     mockFetch
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ approved: false, content: '' }) })
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ approved: true, content: '# Done' }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ status: 'pending', content: '' }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ status: 'approved', content: '# Done' }) })
       .mockResolvedValueOnce(noComments);
     const result = await pollUntilApproved('series-1', baseConfig, 50);
     expect(result).toEqual({ approved: true, content: '# Done' });
@@ -53,7 +53,7 @@ describe('pollUntilApproved', () => {
   it('continues polling when fetch throws (server unreachable)', async () => {
     mockFetch
       .mockRejectedValueOnce(new Error('ECONNREFUSED'))
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ approved: true, content: '# Plan' }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ status: 'approved', content: '# Plan' }) })
       .mockResolvedValueOnce(noComments);
     const result = await pollUntilApproved('series-1', baseConfig, 50);
     expect(result).toEqual({ approved: true, content: '# Plan' });
@@ -62,7 +62,7 @@ describe('pollUntilApproved', () => {
 
   it('weaves comments into approved content', async () => {
     mockFetch
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ approved: true, content: 'line1\nline2\nline3' }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ status: 'approved', content: 'line1\nline2\nline3' }) })
       .mockResolvedValueOnce({ ok: true, json: async () => ([
         { body: 'check this', anchor: 'p-2', resolved: false },
       ]) });
@@ -74,13 +74,13 @@ describe('pollUntilApproved', () => {
     }
   });
 
-  it('returns rejected with woven comments on rejection', async () => {
+  it('returns building_consensus with woven comments on submit-review', async () => {
     mockFetch
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ approved: false, rejected: true, content: 'line1\nline2' }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ status: 'building_consensus', content: 'line1\nline2' }) })
       .mockResolvedValueOnce({ ok: true, json: async () => ([{ body: 'bad idea', anchor: 'p-1', resolved: false }]) });
     const result = await pollUntilApproved('series-1', baseConfig, 50);
     expect(result.approved).toBe(false);
-    if (!result.approved && result.reason === 'rejected') {
+    if (!result.approved && result.reason === 'building_consensus') {
       expect(result.content).toContain('line1');
       expect(result.content).toContain('[reviewer] bad idea');
     }
@@ -90,7 +90,7 @@ describe('pollUntilApproved', () => {
     mockFetch.mockImplementation((url: string) =>
       Promise.resolve({
         ok: true,
-        json: async () => url.endsWith('/comments') ? [] : { approved: false, rejected: false, content: 'plan content' },
+        json: async () => url.endsWith('/comments') ? [] : { status: 'pending', content: 'plan content' },
       })
     );
     const result = await pollUntilApproved(

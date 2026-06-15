@@ -13,13 +13,15 @@ Claude Code hooks that capture plan-mode output to [PACT](https://github.com/baz
 ## Install
 
 ```bash
-npx @baz-scm/pact-hooks install
+npm install -g @baz-scm/pact-hooks
+pact-hooks install
 ```
 
 Or with pnpm:
 
 ```bash
-pnpm dlx @baz-scm/pact-hooks install
+pnpm add -g @baz-scm/pact-hooks
+pact-hooks install
 ```
 
 Or one-liner:
@@ -81,8 +83,8 @@ This means you can work on multiple features in the same session or on the same 
 
 ## Disable for a repo
 
-```json
 // .pact.json
+```json
 { "enabled": false }
 ```
 

@@ -5,10 +5,7 @@ export const planSeries = sqliteTable('plan_series', {
   series_key: text('series_key').unique().notNull(),
   share_token: text('share_token').unique().notNull(),
   expires_at: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
-  delisted: integer('delisted', { mode: 'boolean' }).notNull().default(false),
-  approved: integer('approved', { mode: 'boolean' }).notNull().default(false),
-  rejected: integer('rejected', { mode: 'boolean' }).notNull().default(false),
-  implemented: integer('implemented', { mode: 'boolean' }).notNull().default(false),
+  status: text('status', { enum: ['pending', 'building_consensus', 'approved', 'implemented', 'delisted'] }).notNull().default('pending'),
   created_at: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
 });
 

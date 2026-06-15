@@ -25,8 +25,7 @@ describe('SqliteStorage', () => {
       expect(result.series.id).toBeTruthy();
       expect(result.series.series_key).toBe(base.series_key);
       expect(result.series.share_token).toBeTruthy();
-      expect(result.series.approved).toBe(false);
-      expect(result.series.delisted).toBe(false);
+      expect(result.series.status).toBe('pending');
       expect(result.version.content).toBe(base.content);
       expect(result.version.author_kind).toBe('agent');
       expect(result.deduped).toBe(false);
@@ -51,7 +50,7 @@ describe('SqliteStorage', () => {
       storage.approvePlan(series.id);
       const second = storage.createPlan(base);
       expect(second.deduped).toBe(true);
-      expect(second.series.approved).toBe(false);
+      expect(second.series.status).toBe('pending');
     });
 
     it('overwrites version row on same series_key with different content', () => {
@@ -117,7 +116,7 @@ describe('SqliteStorage', () => {
       const { series } = storage.createPlan(base);
       expect(storage.approvePlan(series.id)).toBe(true);
       const result = storage.getLatestBySeriesId(series.id);
-      expect(result!.series.approved).toBe(true);
+      expect(result!.series.status).toBe('approved');
     });
   });
 

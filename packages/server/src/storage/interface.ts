@@ -1,15 +1,13 @@
 export type AuthorKind = 'agent' | 'human';
 export type SourceTool = 'claude-code' | 'cursor';
+export type PlanStatus = 'pending' | 'building_consensus' | 'approved' | 'implemented' | 'delisted';
 
 export interface PlanSeries {
   id: string;
   series_key: string;
   share_token: string;
   expires_at: Date;
-  delisted: boolean;
-  approved: boolean;
-  rejected: boolean;
-  implemented: boolean;
+  status: PlanStatus;
   created_at: Date;
 }
 
@@ -64,7 +62,7 @@ export interface IStorage {
   getByShareToken(share_token: string): PlanResult | null;
   savePlan(series_id: string, content: string): PlanResult | null;
   approvePlan(series_id: string): boolean;
-  rejectPlan(series_id: string): boolean;
+  submitReview(series_id: string): boolean;
   implementPlan(series_id: string): boolean;
   delistPlan(series_id: string): boolean;
   expirePlans(): number;
