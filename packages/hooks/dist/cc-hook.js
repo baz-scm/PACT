@@ -172,15 +172,15 @@ async function pollUntilApproved(series_id, config, pollIntervalMs = 3e3) {
       const response = await fetch(`${config.server}/api/plans/${series_id}`);
       if (response.ok) {
         const data = await response.json();
-        if (data.approved) {
+        if (data.status === "approved") {
           const comments = await fetchComments(config.server, series_id);
           const content = weaveComments(data.content, comments);
           return { approved: true, content };
         }
-        if (data.rejected) {
+        if (data.status === "building_consensus") {
           const comments = await fetchComments(config.server, series_id);
           const content = weaveComments(data.content, comments);
-          return { approved: false, reason: "rejected", content };
+          return { approved: false, reason: "building_consensus", content };
         }
       }
     } catch {
@@ -285,8 +285,8 @@ ${logMsg}
 ${result.content}`.slice(0, 1e4)
       }
     }));
-  } else if (result.reason === "rejected") {
-    deny(`[PACT] Plan rejected. Do not proceed. Review feedback at: ${share_url}
+  } else if (result.reason === "building_consensus") {
+    deny(`[PACT] Plan is building consensus. Do not proceed. Review feedback at: ${share_url}
 
 ${result.content}`);
   } else if (result.reason === "timeout") {
@@ -317,9 +317,9 @@ if (require.main === module) {
         if (attempt < MAX_ATTEMPTS) await new Promise((r) => setTimeout(r, 1e3 * attempt));
       }
     }
-    process.exit(1);
+    process.exit(0);
   }
-  main().catch(() => process.exit(1));
+  main().catch(() => process.exit(0));
 }
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {

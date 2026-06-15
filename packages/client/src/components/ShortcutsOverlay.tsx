@@ -7,7 +7,7 @@ interface Shortcut {
 
 const SHORTCUTS: Shortcut[] = [
   { keys: ['a'], label: 'Approve plan' },
-  { keys: ['r'], label: 'Reject plan' },
+  { keys: ['r'], label: 'Submit review' },
   { keys: ['c'], label: 'Focus comment box' },
   { keys: [']'], label: 'Next comment anchor' },
   { keys: ['['], label: 'Previous comment anchor' },

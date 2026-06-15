@@ -13,7 +13,7 @@ function envelope(plan: string, toolName = 'ExitPlanMode') {
 }
 
 function approvedResponse(content = PLAN) {
-  return { ok: true, json: async () => ({ approved: true, rejected: false, content }) };
+  return { ok: true, json: async () => ({ status: 'approved', content }) };
 }
 
 function postResponse(overrides = {}) {
@@ -85,12 +85,12 @@ describe('cc-hook', () => {
     expect(state?.share_url).toContain('tok1');
   });
 
-  it('denies with woven comments on rejection', async () => {
+  it('denies with woven comments on submit-review', async () => {
     mockFetch
       .mockResolvedValueOnce(postResponse())
       .mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ approved: false, rejected: true, content: '# Plan' }),
+        json: async () => ({ status: 'building_consensus', content: '# Plan' }),
       })
       .mockResolvedValueOnce({
         ok: true,
@@ -102,7 +102,7 @@ describe('cc-hook', () => {
     const stdout = (stdoutSpy.mock.calls.flat() as string[]).join('');
     const parsed = JSON.parse(stdout) as { hookSpecificOutput: { decision: { behavior: string; message: string } } };
     expect(parsed.hookSpecificOutput.decision.behavior).toBe('deny');
-    expect(parsed.hookSpecificOutput.decision.message).toContain('rejected');
+    expect(parsed.hookSpecificOutput.decision.message).toContain('building consensus');
     expect(parsed.hookSpecificOutput.decision.message).toContain('too risky');
   });
 
@@ -115,7 +115,7 @@ describe('cc-hook', () => {
           json: async () =>
             (url as string).endsWith('/comments')
               ? []
-              : { approved: false, rejected: false, content: '# Plan' },
+              : { status: 'pending', content: '# Plan' },
         })
       );
 

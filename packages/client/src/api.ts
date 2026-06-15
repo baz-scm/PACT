@@ -1,3 +1,5 @@
+export type PlanStatus = 'pending' | 'building_consensus' | 'approved' | 'implemented' | 'delisted';
+
 export interface PlanResponse {
   series_id: string;
   version_id: string;
@@ -8,9 +10,7 @@ export interface PlanResponse {
   input_tokens: number | null;
   output_tokens: number | null;
   expires_at: string;
-  approved: boolean;
-  rejected: boolean;
-  implemented: boolean;
+  status: PlanStatus;
   share_token: string;
   created_at: string;
 }
@@ -52,22 +52,22 @@ export const api = {
     }),
 
   approvePlan: (series_id: string) =>
-    request<{ approved: boolean }>(`/api/plans/${series_id}/approve`, {
+    request<{ status: PlanStatus }>(`/api/plans/${series_id}/approve`, {
       method: 'POST',
     }),
 
-  rejectPlan: (series_id: string) =>
-    request<{ rejected: boolean }>(`/api/plans/${series_id}/reject`, {
+  submitReview: (series_id: string) =>
+    request<{ status: PlanStatus }>(`/api/plans/${series_id}/submit-review`, {
       method: 'POST',
     }),
 
   implementPlan: (series_id: string) =>
-    request<{ implemented: boolean }>(`/api/plans/${series_id}/implement`, {
+    request<{ status: PlanStatus }>(`/api/plans/${series_id}/implement`, {
       method: 'POST',
     }),
 
   delistPlan: (series_id: string) =>
-    request<{ delisted: boolean }>(`/api/plans/${series_id}`, {
+    request<{ status: PlanStatus }>(`/api/plans/${series_id}`, {
       method: 'DELETE',
     }),
 

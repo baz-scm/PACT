@@ -3,11 +3,10 @@ import type { PactConfig } from './config';
 export type GateResult =
   | { approved: true; content: string }
   | { approved: false; reason: 'disabled' }
-  | { approved: false; reason: 'timeout' | 'rejected'; content: string };
+  | { approved: false; reason: 'timeout' | 'building_consensus'; content: string };
 
 interface PlanResponse {
-  approved: boolean;
-  rejected: boolean;
+  status: string;
   content: string;
 }
 
@@ -87,15 +86,15 @@ export async function pollUntilApproved(
       const response = await fetch(`${config.server}/api/plans/${series_id}`);
       if (response.ok) {
         const data = (await response.json()) as PlanResponse;
-        if (data.approved) {
+        if (data.status === 'approved') {
           const comments = await fetchComments(config.server, series_id);
           const content = weaveComments(data.content, comments);
           return { approved: true, content };
         }
-        if (data.rejected) {
+        if (data.status === 'building_consensus') {
           const comments = await fetchComments(config.server, series_id);
           const content = weaveComments(data.content, comments);
-          return { approved: false, reason: 'rejected', content };
+          return { approved: false, reason: 'building_consensus', content };
         }
       }
     } catch {

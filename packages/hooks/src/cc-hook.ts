@@ -121,8 +121,8 @@ export async function runHook(
         additionalContext: `[PACT] Plan approved. Proceed with this reviewed plan:\n\n${result.content}`.slice(0, 10000),
       },
     }));
-  } else if (result.reason === 'rejected') {
-    deny(`[PACT] Plan rejected. Do not proceed. Review feedback at: ${share_url}\n\n${result.content}`);
+  } else if (result.reason === 'building_consensus') {
+    deny(`[PACT] Plan is building consensus. Do not proceed. Review feedback at: ${share_url}\n\n${result.content}`);
   } else if (result.reason === 'timeout') {
     deny(`[PACT] Plan not approved — review timed out. Approve at: ${share_url}\n\n${result.content}`);
   }
@@ -147,7 +147,7 @@ if (require.main === module) {
         if (attempt < MAX_ATTEMPTS) await new Promise((r) => setTimeout(r, 1000 * attempt));
       }
     }
-    process.exit(1);
+    process.exit(0);
   }
-  main().catch(() => process.exit(1));
+  main().catch(() => process.exit(0));
 }

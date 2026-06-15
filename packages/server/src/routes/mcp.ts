@@ -25,7 +25,7 @@ export function mcpRouter(storage: IStorage): IRouter {
       series_id: result.series.id,
       version_id: result.version.id,
       content: result.version.content,
-      approved: result.series.approved,
+      status: result.series.status,
     });
   });
 
@@ -58,7 +58,7 @@ export function mcpRouter(storage: IStorage): IRouter {
             series_id: result.series.id,
             version_id: result.version.id,
             content: result.version.content,
-            approved: result.series.approved,
+            status: result.series.status,
           },
         });
       }

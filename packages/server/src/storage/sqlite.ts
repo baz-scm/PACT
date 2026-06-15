@@ -3,7 +3,7 @@ import crypto from 'node:crypto';
 import path from 'node:path';
 import { drizzle } from 'drizzle-orm/node-sqlite';
 import { migrate } from 'drizzle-orm/node-sqlite/migrator';
-import { eq, and, lt } from 'drizzle-orm';
+import { eq, and, lt, ne } from 'drizzle-orm';
 import { planSeries, planVersions, comments } from './schema';
 import type { IStorage, CreatePlanParams, PlanResult, Comment } from './interface';
 
@@ -46,7 +46,7 @@ export class SqliteStorage implements IStorage {
     const rows = this.db
       .select()
       .from(planSeries)
-      .where(eq(planSeries.delisted, false))
+      .where(ne(planSeries.status, 'delisted'))
       .all();
     const results = rows.flatMap((series) => {
       const version = this.db
@@ -82,7 +82,7 @@ export class SqliteStorage implements IStorage {
         // even if the plan content is identical to the previously approved version.
         this.db
           .update(planSeries)
-          .set({ approved: false, rejected: false, delisted: false })
+          .set({ status: 'pending' })
           .where(eq(planSeries.id, existing.id))
           .run();
         const refreshed = this.db.select().from(planSeries).where(eq(planSeries.id, existing.id)).get()!;
@@ -98,7 +98,7 @@ export class SqliteStorage implements IStorage {
         .run();
       this.db
         .update(planSeries)
-        .set({ approved: false, rejected: false, delisted: false })
+        .set({ status: 'pending' })
         .where(eq(planSeries.id, existing.id))
         .run();
 
@@ -143,7 +143,7 @@ export class SqliteStorage implements IStorage {
     const series = this.db
       .select()
       .from(planSeries)
-      .where(and(eq(planSeries.series_key, series_key), eq(planSeries.delisted, false)))
+      .where(and(eq(planSeries.series_key, series_key), ne(planSeries.status, 'delisted')))
       .get();
     if (!series) return null;
     return this._withVersion(series);
@@ -153,7 +153,7 @@ export class SqliteStorage implements IStorage {
     const series = this.db
       .select()
       .from(planSeries)
-      .where(and(eq(planSeries.id, series_id), eq(planSeries.delisted, false)))
+      .where(and(eq(planSeries.id, series_id), ne(planSeries.status, 'delisted')))
       .get();
     if (!series) return null;
     return this._withVersion(series);
@@ -163,7 +163,7 @@ export class SqliteStorage implements IStorage {
     const series = this.db
       .select()
       .from(planSeries)
-      .where(and(eq(planSeries.share_token, share_token), eq(planSeries.delisted, false)))
+      .where(and(eq(planSeries.share_token, share_token), ne(planSeries.status, 'delisted')))
       .get();
     if (!series) return null;
     return this._withVersion(series);
@@ -183,7 +183,7 @@ export class SqliteStorage implements IStorage {
     const series = this.db
       .select()
       .from(planSeries)
-      .where(and(eq(planSeries.id, series_id), eq(planSeries.delisted, false)))
+      .where(and(eq(planSeries.id, series_id), ne(planSeries.status, 'delisted')))
       .get();
     if (!series) return null;
 
@@ -214,22 +214,22 @@ export class SqliteStorage implements IStorage {
   }
 
   approvePlan(series_id: string): boolean {
-    const result = this.db.update(planSeries).set({ approved: true, rejected: false }).where(eq(planSeries.id, series_id)).run();
+    const result = this.db.update(planSeries).set({ status: 'approved' }).where(eq(planSeries.id, series_id)).run();
     return (result.changes as number) > 0;
   }
 
-  rejectPlan(series_id: string): boolean {
-    const result = this.db.update(planSeries).set({ rejected: true, approved: false }).where(eq(planSeries.id, series_id)).run();
+  submitReview(series_id: string): boolean {
+    const result = this.db.update(planSeries).set({ status: 'building_consensus' }).where(eq(planSeries.id, series_id)).run();
     return (result.changes as number) > 0;
   }
 
   implementPlan(series_id: string): boolean {
-    const result = this.db.update(planSeries).set({ implemented: true }).where(eq(planSeries.id, series_id)).run();
+    const result = this.db.update(planSeries).set({ status: 'implemented' }).where(eq(planSeries.id, series_id)).run();
     return (result.changes as number) > 0;
   }
 
   delistPlan(series_id: string): boolean {
-    const result = this.db.update(planSeries).set({ delisted: true }).where(eq(planSeries.id, series_id)).run();
+    const result = this.db.update(planSeries).set({ status: 'delisted' }).where(eq(planSeries.id, series_id)).run();
     return (result.changes as number) > 0;
   }
 

@@ -12,9 +12,7 @@ function planResponse(result: NonNullable<ReturnType<IStorage['getLatestBySeries
     input_tokens: result.version.input_tokens,
     output_tokens: result.version.output_tokens,
     expires_at: result.series.expires_at,
-    approved: result.series.approved,
-    rejected: result.series.rejected,
-    implemented: result.series.implemented,
+    status: result.series.status,
     share_token: result.series.share_token,
     created_at: result.version.created_at,
   };
@@ -73,7 +71,7 @@ export function plansRouter(storage: IStorage, plansTtlHours: number): IRouter {
     if (!content) return res.status(400).json({ error: 'content required' });
     const existing = storage.getLatestBySeriesId(req.params.series_id);
     if (!existing) return res.status(404).json({ error: 'Not found' });
-    if (existing.series.implemented) return res.status(409).json({ error: 'Plan is implemented' });
+    if (existing.series.status === 'implemented') return res.status(409).json({ error: 'Plan is implemented' });
     const result = storage.savePlan(req.params.series_id, content);
     if (!result) return res.status(404).json({ error: 'Not found' });
     return res.json(planResponse(result));
@@ -82,31 +80,31 @@ export function plansRouter(storage: IStorage, plansTtlHours: number): IRouter {
   router.post('/:series_id/approve', (req, res) => {
     const ok = storage.approvePlan(req.params.series_id);
     if (!ok) return res.status(404).json({ error: 'Not found' });
-    return res.json({ approved: true });
+    return res.json({ status: 'approved' });
   });
 
-  router.post('/:series_id/reject', (req, res) => {
+  router.post('/:series_id/submit-review', (req, res) => {
     const existing = storage.getLatestBySeriesId(req.params.series_id);
     if (!existing) return res.status(404).json({ error: 'Not found' });
-    if (existing.series.implemented) return res.status(409).json({ error: 'Plan is implemented' });
-    const ok = storage.rejectPlan(req.params.series_id);
+    if (existing.series.status === 'implemented') return res.status(409).json({ error: 'Plan is implemented' });
+    const ok = storage.submitReview(req.params.series_id);
     if (!ok) return res.status(404).json({ error: 'Not found' });
-    return res.json({ rejected: true });
+    return res.json({ status: 'building_consensus' });
   });
 
   router.post('/:series_id/implement', (req, res) => {
     const ok = storage.implementPlan(req.params.series_id);
     if (!ok) return res.status(404).json({ error: 'Not found' });
-    return res.json({ implemented: true });
+    return res.json({ status: 'implemented' });
   });
 
   router.delete('/:series_id', (req, res) => {
     const existing = storage.getLatestBySeriesId(req.params.series_id);
     if (!existing) return res.status(404).json({ error: 'Not found' });
-    if (existing.series.implemented) return res.status(409).json({ error: 'Plan is implemented' });
+    if (existing.series.status === 'implemented') return res.status(409).json({ error: 'Plan is implemented' });
     const ok = storage.delistPlan(req.params.series_id);
     if (!ok) return res.status(404).json({ error: 'Not found' });
-    return res.json({ delisted: true });
+    return res.json({ status: 'delisted' });
   });
 
   return router;

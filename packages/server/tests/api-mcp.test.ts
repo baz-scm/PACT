@@ -36,7 +36,7 @@ describe('GET /mcp/get_latest_plan', () => {
     );
     expect(res.status).toBe(200);
     expect(res.body.content).toBe(planBody.content);
-    expect(res.body.approved).toBe(false);
+    expect(res.body.status).toBe('pending');
   });
 
   it('returns approved=true after approval', async () => {
@@ -48,7 +48,7 @@ describe('GET /mcp/get_latest_plan', () => {
     const res = await request(app).get(
       `/mcp/get_latest_plan?series_id=${created.body.series_id}`,
     );
-    expect(res.body.approved).toBe(true);
+    expect(res.body.status).toBe('approved');
   });
 });
 
