@@ -136,8 +136,18 @@ if (require.main === module) {
       process.stdin.on('data', (chunk: string) => { data += chunk; });
       process.stdin.on('end', () => resolve(data));
     });
-    await runHook(input, process.env as Record<string, string | undefined>, process.cwd());
-    process.exit(0);
+    const env = process.env as Record<string, string | undefined>;
+    const MAX_ATTEMPTS = 3;
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      try {
+        await runHook(input, env, process.cwd());
+        process.exit(0);
+      } catch (e) {
+        process.stderr.write(`[PACT] Attempt ${attempt}/${MAX_ATTEMPTS} failed: ${e}\n`);
+        if (attempt < MAX_ATTEMPTS) await new Promise((r) => setTimeout(r, 1000 * attempt));
+      }
+    }
+    process.exit(1);
   }
-  main().catch(() => process.exit(0));
+  main().catch(() => process.exit(1));
 }
