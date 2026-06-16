@@ -5,7 +5,8 @@
     "moduleResolution": "bundler",
     "lib": ["ESNext", "DOM"],
     "jsx": "react-jsx",
-    "noEmit": true
+    "noEmit": true,
+    "types": ["vite/client"]
   },
   "include": ["src"]
 }
