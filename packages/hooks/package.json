@@ -1,7 +1,11 @@
 {
   "name": "@baz-scm/pact-hooks",
   "version": "0.1.0",
+  "license": "AGPL-3.0-or-later",
   "description": "Claude Code + Cursor hooks for PACT plan capture",
+  "publishConfig": {
+    "access": "public"
+  },
   "files": [
     "dist",
     "hooks",
