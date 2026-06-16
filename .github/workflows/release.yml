@@ -1,0 +1,69 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '.github/**'
+
+permissions:
+  contents: read
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/create-github-app-token@v2
+        id: app-token
+        with:
+          app-id: ${{ vars.CI_GITHUB_APP_ID }}
+          private-key: ${{ secrets.CI_GITHUB_APP_PRIVATE_KEY }}
+      - uses: googleapis/release-please-action@v4
+        id: release
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          target-branch: main
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+    outputs:
+      releases_created: ${{ steps.release.outputs.releases_created }}
+      paths_released: ${{ steps.release.outputs.paths_released }}
+
+  publish:
+    if: ${{ needs.release-please.outputs.releases_created }}
+    needs: release-please
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.12.4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: latest
+          cache: pnpm
+          registry-url: "https://registry.npmjs.org"
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm -r build
+
+      - name: Publish pact-core
+        if: contains(fromJson(needs.release-please.outputs.paths_released || '[]'), 'packages/server')
+        run: pnpm publish --filter @baz-scm/pact-core --access public --provenance --no-git-checks
+
+      - name: Publish pact-hooks
+        if: contains(fromJson(needs.release-please.outputs.paths_released || '[]'), 'packages/hooks')
+        run: pnpm publish --filter @baz-scm/pact-hooks --access public --provenance --no-git-checks

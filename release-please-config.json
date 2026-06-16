@@ -1,0 +1,47 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "packages": {
+    "packages/server": {
+      "release-type": "node",
+      "component": "pact-core",
+      "include-component-in-tag": true,
+      "bump-minor-pre-major": true,
+      "bump-patch-for-minor-pre-major": true,
+      "changelog-sections": [
+        { "type": "fix", "section": "🐛 Bug Fixes" },
+        { "type": "feat", "section": "✨ New Features" },
+        { "type": "chore", "hidden": true, "section": "🧹 Chore" },
+        { "type": "docs", "section": "📚 Documentation" },
+        { "type": "perf", "section": "🚀 Performance" },
+        { "type": "build", "hidden": true, "section": "🛠️ Build" },
+        { "type": "deps", "section": "📦 Dependencies" },
+        { "type": "ci", "hidden": true, "section": "🚦 CI" },
+        { "type": "refactor", "section": "🔄 Refactoring" },
+        { "type": "revert", "section": "🔙 Reverts" },
+        { "type": "style", "hidden": true, "section": "🎨 Styling" },
+        { "type": "test", "hidden": true, "section": "🧪 Tests" }
+      ]
+    },
+    "packages/hooks": {
+      "release-type": "node",
+      "component": "pact-hooks",
+      "include-component-in-tag": true,
+      "bump-minor-pre-major": true,
+      "bump-patch-for-minor-pre-major": true,
+      "changelog-sections": [
+        { "type": "fix", "section": "🐛 Bug Fixes" },
+        { "type": "feat", "section": "✨ New Features" },
+        { "type": "chore", "hidden": true, "section": "🧹 Chore" },
+        { "type": "docs", "section": "📚 Documentation" },
+        { "type": "perf", "section": "🚀 Performance" },
+        { "type": "build", "hidden": true, "section": "🛠️ Build" },
+        { "type": "deps", "section": "📦 Dependencies" },
+        { "type": "ci", "hidden": true, "section": "🚦 CI" },
+        { "type": "refactor", "section": "🔄 Refactoring" },
+        { "type": "revert", "section": "🔙 Reverts" },
+        { "type": "style", "hidden": true, "section": "🎨 Styling" },
+        { "type": "test", "hidden": true, "section": "🧪 Tests" }
+      ]
+    }
+  }
+}
